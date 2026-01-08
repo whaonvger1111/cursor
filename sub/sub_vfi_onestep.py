@@ -164,6 +164,9 @@ def sub_vfi_onestep(val_c, val0_u, kp_bar, B_hat, profit_mat, k_grid, b_grid,
     """
     nk, nb, nx = val_c.shape
     
+    # 确保k_grid是一维数组（处理可能的(nk,1)形状）
+    k_grid = k_grid.flatten() if k_grid.ndim > 1 else k_grid
+    
     if nk != len(k_grid):
         raise ValueError('nk不正确')
     if nb != b_grid.shape[1]:
