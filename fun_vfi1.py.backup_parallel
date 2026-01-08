@@ -1,0 +1,419 @@
+"""
+求解企业的动态规划问题，给定价格{q,w,R}
+"""
+import numpy as np
+import sys
+import os
+import time
+
+# 确保错误信息立即输出
+sys.stdout.flush()
+sys.stderr.flush()
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'tools'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'sub'))
+
+from fun import Fun
+from sub.sub_V1_onestep import sub_V1_onestep
+from sub.sub_investment_onestep import sub_investment_onestep
+from sub.sub_Bhat_onestep import sub_Bhat_onestep
+from sub.sub_kp_onestep import sub_kp_onestep
+from sub.sub_vfi_onestep import sub_vfi_onestep
+from fun_pol_update import fun_pol_update
+from fun_entry_exit import fun_entry_exit
+from interp_entry_exit import interp_entry_exit
+from gen_phi_dist import gen_phi_dist
+from tools.v2struct import pack_to_struct
+
+
+def fun_vfi1(prices, par):
+    """
+    求解企业的动态规划问题
+    
+    参数:
+    prices: 价格字典
+    par: 参数字典
+    
+    返回:
+    sol: 解字典
+    b_grid: 债务网格
+    phi_dist: 进入者分布
+    conv_flag: 收敛标志
+    """
+    # 输入检查
+    if not isinstance(prices, dict):
+        raise TypeError('输入<prices>在fun_vfi1中必须是字典！')
+    if not isinstance(par, dict):
+        raise TypeError('输入<par>在fun_vfi1中必须是字典！')
+    
+    # 解包一些标志
+    verbose = par.get('verbose', 1)
+    max_iter = par['max_iter']
+    tolerance = par['tol_vfi']
+    tol_vfi_u = par['tol_vfi_u']
+    do_howard = par.get('do_howard', 1)
+    n_howard = par.get('n_howard', 50)
+    tol_bhat = par['tol_bhat']
+    
+    # 解包一些参数
+    theta = par['theta']
+    delta = par['delta_k']
+    lambda_val = par['lambda']
+    cost_e = par['cost_e']
+    x_grid = par['x_grid']
+    pi_x = par['pi_x']
+    nx = par['nx']
+    nb = par['nb']
+    nk = par['nk']
+    x0_prob = par['x0_prob']
+    k_grid = par['k_grid']
+    fixcost = par['fixcost']  # 向量(nk,)
+    prob_k = par['prob_k']
+    psi = par['psi']
+    
+    bk0_vec = par['bk0_vec']
+    bk0_prob = par['bk0_prob']
+    
+    # 解包价格
+    q = prices['q']
+    wage = prices['wage']
+    
+    if verbose >= 1:
+        print('--------------------------------------------')
+        print('VFI')
+        print('--------------------------------------------')
+    
+    # 初始化收敛标志
+    conv_flag = 0
+    
+    # 计算无约束企业扣除债务后的价值，即V(x)
+    # 在网格(x,k)上预计算静态利润
+    try:
+        profit_mat = np.zeros((nk, nx))
+        for x_c in range(nx):
+            for k_c in range(nk):
+                k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+                profit_mat[k_c, x_c] = Fun.fun_profit(x_grid[x_c], k_val, fixcost[k_c], wage, par)
+    except Exception as e:
+        print(f'错误：计算profit_mat失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    V1 = np.zeros((nk, nx))
+    ind = 0
+    errter = 10000
+    
+    if verbose >= 1:
+        print('VFI for unconstrained firms...')
+    
+    start_time = time.time()
+    while ind < max_iter and errter > tol_vfi_u:
+        try:
+            V2 = sub_V1_onestep(V1, pi_x, profit_mat, k_grid, q, theta, delta, psi, do_howard)
+        except Exception as e:
+            print(f'错误：sub_V1_onestep执行失败 (迭代 {ind}): {type(e).__name__}: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            conv_flag = -1
+            return None, None, None, conv_flag
+        
+        errter = np.max(np.abs(V1 - V2))
+        ind += 1
+        # 更新
+        V1 = V2
+        
+        if verbose >= 2:
+            print(f'iter = {ind}, err = {errter:.6f}')
+    
+    if verbose >= 1:
+        elapsed = time.time() - start_time
+        print(f'Time elapsed: {elapsed:.4f}')
+        print(f'无约束企业VFI完成: 迭代次数 = {ind}, 最终误差 = {errter:.10e}, 容差 = {tol_vfi_u:.10e}')
+        if errter > tol_vfi_u:
+            print(f'警告：无约束企业VFI未收敛！')
+    
+    # 找到生产率截断值x_tilde
+    x_tilde = np.zeros(nk, dtype=int)
+    x_tilde_val = np.zeros(nk)
+    
+    for k_c in range(nk):
+        k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+        viable_x = np.where(V1[k_c, :] >= theta * (1 - delta) * k_val)[0]
+        if len(viable_x) > 0:
+            x_tilde[k_c] = np.min(viable_x)
+            x_tilde_val[k_c] = x_grid[x_tilde[k_c]]
+        else:
+            print(f'错误：没有可行的x for k_c={k_c}, k_val={k_val:.6f}')
+            print(f'  V1[k_c, :] = {V1[k_c, :]}')
+            print(f'  theta * (1 - delta) * k_val = {theta * (1 - delta) * k_val:.6f}')
+            sys.stdout.flush()
+            sys.stderr.flush()
+            conv_flag = -1
+            return None, None, None, conv_flag
+    
+    if not np.all(np.isfinite(x_tilde_val)):
+        print('错误：x_tilde_val不是有限的')
+        print(f'  x_tilde_val = {x_tilde_val}')
+        print(f'  非有限值的位置: {np.where(~np.isfinite(x_tilde_val))[0]}')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 计算无约束稳态投资政策
+    try:
+        pol_kp_unc = sub_investment_onestep(V1, k_grid, pi_x, theta, delta, q, psi)
+    except Exception as e:
+        print(f'错误：sub_investment_onestep执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 计算B_hat(k,x)作为(21)和(22)的固定点
+    B_hat = np.ones((nk, nx))
+    ind = 0
+    errter = 100
+    
+    if verbose >= 1:
+        print('Fixed point B_hat...')
+    
+    start_time = time.time()
+    while ind < max_iter and errter > tol_bhat:
+        try:
+            B_hat_new, pol_bp_unc = sub_Bhat_onestep(B_hat, pol_kp_unc, profit_mat,
+                                                     x_tilde_val, k_grid, x_grid, q, 
+                                                     theta, delta, lambda_val)
+        except Exception as e:
+            print(f'错误：sub_Bhat_onestep执行失败 (迭代 {ind}): {type(e).__name__}: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            conv_flag = -1
+            return None, None, None, conv_flag
+        
+        errter = np.max(np.abs(B_hat - B_hat_new))
+        ind += 1
+        # 更新
+        B_hat = B_hat_new
+        
+        # 方案A：添加进度输出（即使verbose=1也输出，每10次迭代或每次迭代都输出）
+        if verbose >= 1:
+            if ind % 10 == 0 or ind == 1:  # 每10次迭代或第1次迭代输出
+                print(f'  B_hat迭代 {ind}/{max_iter}, 误差 = {errter:.10e}, 容差 = {tol_bhat:.10e}')
+        
+        if verbose >= 2:
+            print(f'iter = {ind}, err = {errter:.6f}')
+    
+    if verbose >= 1:
+        elapsed = time.time() - start_time
+        print(f'Time elapsed: {elapsed:.4f}')
+    
+    if errter > tol_bhat:
+        print(f'警告：B_hat固定点未收敛！')
+        print(f'  迭代次数 = {ind}, 误差 = {errter:.10e}, 容差 = {tol_bhat:.10e}')
+        sys.stdout.flush()
+        sys.stderr.flush()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 定义依赖于k的灵活b网格
+    b_tilde = np.zeros(nk)
+    b_grid = np.zeros((nk, nb))
+    
+    for k_c in range(nk):
+        k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+        viable_x = x_grid >= x_tilde_val[k_c]
+        if np.sum(viable_x) == 0:
+            print(f'k_c = {k_c}, k_val = {k_val:.6f}')
+            print('警告：没有可行的x')
+            conv_flag = -1
+            return None, None, None, conv_flag
+        
+        b_tilde[k_c] = np.min(B_hat[k_c, viable_x])
+        b_grid[k_c, :] = np.linspace(min(b_tilde[k_c], lambda_val * k_val), 
+                                     lambda_val * k_val, nb)
+    
+    # 预计算下一期资本k'的上界
+    # 上界取决于资本调整是向上还是向下（见草稿方程25）
+    try:
+        kp_bar = sub_kp_onestep(profit_mat, b_grid, k_grid, q, theta, delta, lambda_val)
+    except Exception as e:
+        print(f'错误：sub_kp_onestep执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 验证
+    if not np.all(np.isfinite(kp_bar)) or np.any(np.isnan(kp_bar)):
+        print('错误：kp_bar包含非有限值或NaN')
+        print(f'  非有限值数量: {np.sum(~np.isfinite(kp_bar))}')
+        print(f'  NaN数量: {np.sum(np.isnan(kp_bar))}')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    if kp_bar.shape != (nk, nb, nx):
+        print(f'错误：kp_bar维度错误')
+        print(f'  期望形状: ({nk}, {nb}, {nx})')
+        print(f'  实际形状: {kp_bar.shape}')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 无约束企业的价值函数v(b,x)=V(x)-b
+    # 无约束企业的价值函数: v(b,x,k) = V(x,k)-b
+    val_unc = np.zeros((nk, nb, nx))  # 退出后（即继续经营的企业）
+    val0_unc = np.zeros((nk, nb, nx))  # 退出前
+    
+    for x_c in range(nx):
+        for b_c in range(nb):
+            for k_c in range(nk):
+                k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+                b_val = b_grid[k_c, b_c]
+                val_unc[k_c, b_c, x_c] = V1[k_c, x_c] - b_val
+                val0_unc[k_c, b_c, x_c] = max(theta * (1 - delta) * k_val - b_val,
+                                             val_unc[k_c, b_c, x_c])
+    
+    # 使用方程(23)-(25)求解约束企业的问题
+    # 这里"val"是v_c(x,b,k)，约束企业退出后价值的初始猜测
+    val = val_unc.copy()
+    iter_count = 0
+    dist = 100
+    
+    if verbose >= 1:
+        print('VFI for constrained firms...')
+        start_time = time.time()
+    
+    # 固定点val --> val_new
+    while iter_count < max_iter and dist > tolerance:
+        try:
+            val_new, pol_kp_ind_con = sub_vfi_onestep(val, val0_unc, kp_bar, B_hat,
+                                                      profit_mat, k_grid, b_grid, pi_x,
+                                                      theta, q, delta, psi, do_howard, n_howard)
+        except Exception as e:
+            print(f'错误：sub_vfi_onestep执行失败 (迭代 {iter_count}): {type(e).__name__}: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            conv_flag = -1
+            return None, None, None, conv_flag
+        
+        dist = np.max(np.abs(val_new - val))
+        iter_count += 1
+        # 更新
+        val = val_new
+        
+        if verbose >= 2:
+            print(f'iter = {iter_count}, err = {dist:.18f}')
+        
+        # 每10次迭代显示一次进度（如果verbose >= 1）
+        if verbose >= 1 and iter_count % 10 == 0:
+            elapsed = time.time() - start_time
+            print(f'  迭代 {iter_count}, 误差 = {dist:.10f}, 耗时 = {elapsed:.2f}秒')
+    
+    if verbose >= 1:
+        elapsed = time.time() - start_time
+        print(f'约束企业VFI完成: {iter_count}次迭代, 耗时 = {elapsed:.2f}秒')
+        print(f'Time elapsed: {elapsed:.4f}')
+    
+    if dist > tolerance:
+        print(f'警告：约束企业VFI未收敛！')
+        print(f'  迭代次数 = {iter_count}, 误差 = {dist:.10e}, 容差 = {tolerance:.10e}')
+        sys.stdout.flush()
+        sys.stderr.flush()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 计算由方程(25)隐含的最优债务政策
+    try:
+        pol_debt, pol_kp, pol_kp_ind, val = fun_pol_update(val, val_unc, pol_bp_unc,
+                                                           pol_kp_unc, pol_kp_ind_con,
+                                                           profit_mat, B_hat, k_grid, b_grid,
+                                                           q, theta, delta)
+    except Exception as e:
+        print(f'错误：fun_pol_update执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 计算进入和退出政策
+    try:
+        pol_entry, pol_exit, pol_exit_forced, pol_exit_vol = \
+            fun_entry_exit(val, profit_mat, b_grid, k_grid, theta, delta, cost_e)
+    except Exception as e:
+        print(f'错误：fun_entry_exit执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 插值进入/退出
+    try:
+        pol_entry, pol_exit = interp_entry_exit(pol_entry, pol_exit, b_grid, val,
+                                               profit_mat, par)
+    except Exception as e:
+        print(f'错误：interp_entry_exit执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 验证
+    if not np.all(np.isfinite(b_grid)):
+        print('警告：b_grid不是有限的')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    if not np.all(np.isfinite(val)):
+        print('警告：val不是有限的')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    if not np.all(np.isfinite(pol_debt)):
+        print('警告：pol_debt不是有限的')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    if not np.all(np.isfinite(pol_exit)):
+        print('警告：pol_exit不是有限的')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    if not np.all(np.isfinite(pol_entry)):
+        print('警告：pol_entry不是有限的')
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 进入者的(k,b,x)初始分布（草稿中的\Phi）
+    # 注意：k,b,x的分布彼此独立。
+    # 进入者从两个非退化分布中抽取(k,x)：prob_k（Pareto）和x0_prob（对数正态）。
+    # b0基于初始债务资本比par.bk0计算
+    try:
+        phi_dist = gen_phi_dist(bk0_vec, bk0_prob, k_grid, b_grid, x0_prob, prob_k)
+    except Exception as e:
+        print(f'错误：gen_phi_dist执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 将解打包到字典中
+    try:
+        sol = pack_to_struct(
+            V1=V1, val=val, pol_kp_ind=pol_kp_ind, pol_kp=pol_kp, pol_kp_unc=pol_kp_unc,
+            pol_debt=pol_debt, pol_exit=pol_exit, pol_exit_forced=pol_exit_forced,
+            pol_exit_vol=pol_exit_vol, pol_entry=pol_entry, val_unc=val_unc,
+            val0_unc=val0_unc, profit_mat=profit_mat, x_tilde_val=x_tilde_val,
+            b_tilde=b_tilde, wage=wage, kp_bar=kp_bar, B_hat=B_hat
+        )
+    except Exception as e:
+        print(f'错误：pack_to_struct执行失败: {type(e).__name__}: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        conv_flag = -1
+        return None, None, None, conv_flag
+    
+    # 输出检查
+    if not isinstance(sol, dict):
+        raise TypeError('输出<sol>必须是字典')
+    
+    return sol, b_grid, phi_dist, conv_flag
+

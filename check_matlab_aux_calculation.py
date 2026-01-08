@@ -128,3 +128,4 @@ print('实际使用的是: aux = fun.prod_corp(KL_ratio,1/KL_ratio,par)-delta_k;
 
 
 
+

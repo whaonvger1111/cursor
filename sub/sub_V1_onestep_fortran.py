@@ -69,21 +69,41 @@ def sub_V1_onestep_fortran(V1, pi_x, profit_mat, k_grid, q, theta, delta, psi, d
         # 使用原版本（会在Fortran中重新计算EV，但至少Python部分使用了BLAS）
         V2, kpol_ind = vfi_core.vfi_core.sub_v1_onestep_fortran(V1, pi_x, profit_mat, k_grid, q, theta, delta, psi)
     
-    # Howard加速（如果需要）
+    # Howard加速（如果需要）- 向量化版本，大幅提升性能
     if do_howard == 1:
-        from fun import Fun  # 使用Python版本的adjcost_scal，避免Python-Fortran调用开销
+        from fun import Fun
         n_howard = 50
+        kprime_vec = k_grid.flatten()
+        
+        # 预计算一些常量
+        theta_delta_kprime = theta * (1 - delta) * kprime_vec  # (nk,)
+        q_psi_theta_delta_kprime = q * psi * theta * (1 - delta) * kprime_vec  # (nk,)
+        
+        # 创建索引网格用于高级索引
+        k_indices = np.arange(nk)[:, np.newaxis]  # (nk, 1)
+        x_indices = np.arange(nx)[np.newaxis, :]  # (1, nx)
+        
         for h_c in range(n_howard):
-            V1_max = np.maximum(theta * (1 - delta) * k_grid[:, np.newaxis], V2)
-            EVh = V1_max @ pi_x.T
-            for x_c in range(nx):
-                EV_x = EVh[:, x_c]
-                for k_c in range(nk):
-                    kopt_ind = kpol_ind[k_c, x_c]
-                    V2[k_c, x_c] = (profit_mat[k_c, x_c] - 
-                                   Fun.adjcost_scal(k_grid[kopt_ind], k_grid[k_c], theta, delta) + 
-                                   q * (psi * theta * (1 - delta) * k_grid[kopt_ind] + 
-                                        (1 - psi) * EV_x[kopt_ind]))
+            # 向量化计算EV
+            V1_max = np.maximum(theta_delta_kprime[:, np.newaxis], V2)  # (nk, nx)
+            EVh = V1_max @ pi_x.T  # (nk, nx)
+            
+            # 使用高级索引获取最优k'对应的值
+            kopt_kprime = k_grid[kpol_ind]  # (nk, nx) - 最优k'值
+            kopt_theta_delta = theta_delta_kprime[kpol_ind]  # (nk, nx)
+            kopt_q_psi = q_psi_theta_delta_kprime[kpol_ind]  # (nk, nx)
+            EVh_opt = EVh[kpol_ind, x_indices]  # (nk, nx) - 使用最优k'的EV
+            
+            # 向量化计算调整成本
+            k_today_2d = k_grid[:, np.newaxis]  # (nk, 1)
+            adj_val = kopt_kprime - (1 - delta) * k_today_2d  # (nk, nx)
+            adj_val = np.where(kopt_kprime < (1 - delta) * k_today_2d, 
+                              theta * adj_val, adj_val)  # (nk, nx)
+            
+            # 向量化更新V2
+            V2 = (profit_mat - adj_val + 
+                  kopt_q_psi + 
+                  q * (1 - psi) * EVh_opt)  # (nk, nx)
     
     return V2
 

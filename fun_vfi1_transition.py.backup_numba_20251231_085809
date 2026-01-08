@@ -1,0 +1,532 @@
+"""
+转移动态期间企业价值函数迭代求解
+这是fun_transition.m中步骤2a和2b的实现
+"""
+import numpy as np
+import sys
+import os
+
+# 添加路径
+sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'sub'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'tools'))
+
+from fun import Fun
+from sub.sub_V1_onestep import sub_V1_onestep
+from sub.sub_investment_onestep import sub_investment_onestep
+from sub.sub_Bhat_onestep import sub_Bhat_onestep
+from sub.sub_kp_onestep import sub_kp_onestep
+from fun_pol_update import fun_pol_update
+from fun_entry_exit import fun_entry_exit
+from interp_entry_exit import interp_entry_exit
+from fun_phi_tran import fun_phi_tran
+from tools.v2struct import pack_to_struct
+
+
+def ind2sub(shape, index):
+    """将线性索引转换为多维索引"""
+    indices = np.unravel_index(index, shape)
+    return indices
+
+
+def sub2ind(shape, *indices):
+    """将多维索引转换为线性索引"""
+    return np.ravel_multi_index(indices, shape)
+
+
+def fun_vfi1_transition(par, path, sol_ss, b_grid_ss):
+    """
+    转移动态期间企业价值函数迭代求解
+    
+    参数:
+    par: 参数字典
+    path: 价格路径字典
+    sol_ss: 稳态解字典
+    b_grid_ss: 稳态债务网格
+    
+    返回:
+    polS: 政策函数字典
+    """
+    # 解包标志
+    verbose = par.get('verbose', 1)
+    
+    # 解包参数
+    T = par['T']
+    Tmax = par['Tmax']
+    
+    # 打印确认T的值（用于调试）
+    print(f'\n[fun_vfi1_transition] T = {T} (从par["T"]读取)')
+    theta = par['theta']
+    x_grid = par['x_grid']
+    pi_x = par['pi_x']
+    nx = par['nx']
+    
+    # 确保x_grid和pi_x的维度与nx匹配（如果从稳态加载，可能需要截断）
+    x_grid_flat = np.asarray(x_grid).flatten()
+    if len(x_grid_flat) != nx:
+        print(f'警告：x_grid长度({len(x_grid_flat)})与nx({nx})不匹配，截断x_grid')
+        x_grid = x_grid_flat[:nx].copy()
+    else:
+        x_grid = x_grid_flat.copy()
+    
+    # 确保pi_x的维度与nx匹配
+    if pi_x.shape[0] != nx or pi_x.shape[1] != nx:
+        print(f'警告：pi_x维度({pi_x.shape})与nx({nx})不匹配，截断pi_x')
+        pi_x = pi_x[:nx, :nx].copy()
+        # 重新归一化行（确保每行概率和为1）
+        row_sums = pi_x.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1  # 避免除零
+        pi_x = pi_x / row_sums
+    nb = par['nb']
+    ns = par['ns']
+    ni = par['ni']  # 受冲击和未受冲击
+    nn = par['nn']  # = ns*ni
+    nk = par['nk']
+    delta = par['delta_k']  # 折旧率
+    lambda_vec = par['lambda_vec']
+    psi = par['psi']
+    cost_e = par['cost_e']
+    fixcost = par['fixcost']  # 维度 nk
+    k_grid = par['k_grid']  # 维度 nk
+    # 确保k_grid的长度与nk匹配（如果从稳态加载，可能需要截断）
+    k_grid_flat = np.asarray(k_grid).flatten()
+    if len(k_grid_flat) != nk:
+        print(f'警告：k_grid长度({len(k_grid_flat)})与nk({nk})不匹配，截断k_grid')
+        k_grid = k_grid_flat[:nk].copy()
+        # 同时截断fixcost以匹配
+        if len(fixcost) != nk:
+            fixcost = fixcost[:nk].copy()
+    else:
+        k_grid = k_grid_flat.copy()
+    # 验证维度
+    if len(k_grid) != nk:
+        raise ValueError(f'k_grid长度({len(k_grid)})必须等于nk({nk})')
+    if len(fixcost) != nk:
+        raise ValueError(f'fixcost长度({len(fixcost)})必须等于nk({nk})')
+    A_small = par['A_small']  # 维度 (T+1,2)
+    Xp = par.get('Xp', 0)  # 标量
+    T_grant = par.get('T_grant', 0)  # 补助给予的期数
+    
+    # 从稳态解包最后期的值
+    V1_final = sol_ss['V1']  # 这是无约束企业的V(k,x), 维度:(nk_ss,nx_ss)
+    # 如果稳态的nk与当前nk不同，需要截断或插值
+    if V1_final.shape[0] != nk or V1_final.shape[1] != nx:
+        print(f'警告：V1_final维度({V1_final.shape})与(nk={nk},nx={nx})不匹配，截断V1_final')
+        V1_final = V1_final[:nk, :nx].copy()
+    B_hat_final = sol_ss['B_hat']  # 维度: (nk_ss,nx_ss)
+    # 如果稳态的维度与当前不同，需要截断
+    if B_hat_final.shape[0] != nk or B_hat_final.shape[1] != nx:
+        print(f'警告：B_hat_final维度({B_hat_final.shape})与(nk={nk},nx={nx})不匹配，截断B_hat_final')
+        B_hat_final = B_hat_final[:nk, :nx].copy()
+    x_tilde_val_final = sol_ss['x_tilde_val']  # 维度: (nk_ss,1)
+    # 如果稳态的nk与当前nk不同，需要截断
+    if len(x_tilde_val_final) != nk:
+        print(f'警告：x_tilde_val_final长度({len(x_tilde_val_final)})与nk({nk})不匹配，截断x_tilde_val_final')
+        x_tilde_val_final = x_tilde_val_final[:nk].copy()
+    val_final = sol_ss['val']  # 维度: (nb,nx,nk) - 注意MATLAB中可能是(nk,nb,nx)
+    wage_ss = sol_ss.get('wage', par.get('w', 1.0))
+    phi_dist_ss = sol_ss['phi_dist']  # 维度: (nb,nx,nk) 或 (nk,nb,nx)
+    val0_unc_final = sol_ss.get('val0_unc', None)
+    
+    # 解包转移动态价格路径
+    q_path = path['q']
+    wage_path = path['w']
+    
+    # 检查A_small的维度
+    if A_small.shape != (T + 1, ni):
+        raise ValueError(f'A_small维度错误！期望({T+1},{ni})，得到{A_small.shape}')
+    
+    # 计算nn_vec
+    nn_vec = np.zeros(T + 1, dtype=int)
+    for t in range(T + 1):
+        if t < Tmax:
+            nn_vec[t] = nn
+        else:
+            nn_vec[t] = 1
+    
+    # 2.a. 计算利润 profit_mat(1:nk,1:xn,1:T+1,1:nn)
+    # 注意：补助不会改变最优劳动需求
+    
+    grant_vec = np.zeros((nk, nx, T + 1, ns))  # 维度: (nk,nx,T+1,ns)
+    for x_c in range(nx):
+        for k_c in range(nk):
+            kappa = k_grid[k_c]
+            for t in range(T_grant):
+                # 补助金额基于劳动需求*如果没有TFP冲击（所以不依赖于受冲击程度）
+                x_val = x_grid[x_c]
+                grant_vec[k_c, x_c, t, 0] = Xp * wage_ss * Fun.fun_l(x_val, wage_ss, kappa, par) / T_grant
+    
+    profit_mat = np.zeros((nk, nx, T + 1, nn))
+    for n_c in range(nn):  # 1 = 受冲击, 有补助,  2 = 未受冲击, 有补助, 3 = 受冲击, 无补助, 4 = 未受冲击, 无补助
+        i_c, s_c = ind2sub([ni, ns], n_c)  # i_c = 受冲击指标; s_c = 补助指标
+        for t in range(T + 1):
+            for x_c in range(nx):
+                x_val = x_grid[x_c] * A_small[t, i_c]
+                for k_c in range(nk):
+                    kappa = k_grid[k_c]
+                    c = fixcost[k_c]
+                    profit_mat[k_c, x_c, t, n_c] = Fun.fun_profit(x_val, kappa, c, wage_path[t], par)
+                    # 添加补助
+                    profit_mat[k_c, x_c, t, n_c] += grant_vec[k_c, x_c, t, s_c]
+    
+    # 2.b. 通过向后归纳计算价值函数
+    
+    # 无约束企业的VFI（向后归纳）
+    if verbose >= 1:
+        print('VFI for unconstrained firms...')
+    
+    V1 = np.zeros((nk, nx, T + 1, nn))
+    # 确保V1_final的维度正确
+    if V1_final.shape[0] != nk or V1_final.shape[1] != nx:
+        print(f'警告：V1_final维度({V1_final.shape})与(nk={nk},nx={nx})不匹配，截断V1_final')
+        V1_final = V1_final[:nk, :nx].copy()
+    Vnext = np.tile(V1_final[:, :, np.newaxis], (1, 1, nn))  # T+1期的终端条件是稳态
+    # 验证Vnext的维度
+    if Vnext.shape[0] != nk or Vnext.shape[1] != nx:
+        raise ValueError(f'Vnext维度错误：期望({nk},{nx},...)，得到{Vnext.shape[:2]}')
+    
+    for t in range(T, -1, -1):  # 从T+1到1
+        for n_c in range(nn_vec[t]):
+            V1[:, :, t, n_c] = sub_V1_onestep(Vnext[:, :, n_c], pi_x, 
+                                             profit_mat[:, :, t, n_c],
+                                             k_grid, q_path[t], theta, delta, psi, 0)
+            # 更新
+            Vnext[:, :, n_c] = V1[:, :, t, n_c]
+            if t >= Tmax:
+                for nt_c in range(1, nn):
+                    V1[:, :, t, nt_c] = V1[:, :, t, 0]
+                    Vnext[:, :, nt_c] = Vnext[:, :, 0]
+    
+    if verbose >= 2:
+        print(' ')
+    
+    # 验证V1
+    assert np.all(np.isfinite(V1)) and np.all(~np.isnan(V1)), "V1包含非有限值或NaN"
+    if verbose >= 1:
+        print("VFI for unconstrained firms done!")
+    
+    # 找到生产率截断值x_tilde
+    x_tilde = np.zeros((nk, T + 1, nn), dtype=int)
+    x_tilde_val = np.zeros((nk, T + 1, nn))
+    
+    for n_c in range(nn):
+        for t in range(T, -1, -1):
+            for k_c in range(nk):
+                k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+                viable_x = np.where(V1[k_c, :, t, n_c] >= theta * (1 - delta) * k_val)[0]
+                if len(viable_x) > 0:
+                    x_tilde[k_c, t, n_c] = np.min(viable_x)
+                    x_tilde_val[k_c, t, n_c] = x_grid[x_tilde[k_c, t, n_c]]
+                    if verbose >= 2:
+                        print(f'有可行的x for k_c={k_c}, k_val={k_val:.6f}, t={t}, n_c={n_c}')
+                else:
+                    # 没有可行的x：这在转移动态中是可能的（特别是冲击很大时）
+                    # 设置默认值，只在详细模式下输出警告
+                    if verbose >= 2:
+                        print(f'没有可行的x for k_c={k_c}, k_val={k_val:.6f}, t={t}, n_c={n_c}')
+                    x_tilde[k_c, t, n_c] = nx
+                    x_tilde_val[k_c, t, n_c] = x_grid[-1] + 1
+    
+    # 计算无约束稳态投资政策
+    Vnext = np.tile(V1_final[:, :, np.newaxis], (1, 1, nn))  # T+1期的终端条件是稳态
+    pol_kp_unc = np.zeros((nk, nx, T + 1, nn))
+    
+    for n_c in range(nn):
+        for t in range(T, -1, -1):
+            pol_kp_unc[:, :, t, n_c] = sub_investment_onestep(Vnext[:, :, n_c],
+                                                              k_grid, pi_x, theta, 
+                                                              delta, q_path[t], psi)
+            Vnext[:, :, n_c] = V1[:, :, t, n_c]
+    
+    # 通过向后归纳计算B_hat(k,x)
+    if verbose >= 1:
+        print("Fixed point B_hat...")
+    
+    # 分配B_hat(k,x,t,n)和b'(k,x,t,n)无约束
+    B_hat = np.ones((nk, nx, T + 1, nn))
+    pol_bp_unc = np.zeros((nk, nx, T + 1, nn))
+    B_hat_next = np.tile(B_hat_final[:, :, np.newaxis], (1, 1, nn))
+    x_tilde_val_next = np.tile(x_tilde_val_final[:, np.newaxis], (1, nn))
+    
+    for n_c in range(nn):
+        for t in range(T, -1, -1):
+            B_hat[:, :, t, n_c], pol_bp_unc[:, :, t, n_c] = sub_Bhat_onestep(
+                B_hat_next[:, :, n_c],
+                pol_kp_unc[:, :, t, n_c], profit_mat[:, :, t, n_c],
+                x_tilde_val_next[:, n_c], k_grid, x_grid, q_path[t], 
+                theta, delta, lambda_vec[t])
+            B_hat_next[:, :, n_c] = B_hat[:, :, t, n_c]
+            x_tilde_val_next[:, n_c] = x_tilde_val[:, t, n_c]
+    
+    # 定义依赖于k的灵活b网格
+    b_tilde = np.zeros((nk, T + 1, nn))  # b_tilde = 每个k的min(B_hat)
+    b_grid = np.zeros((nb, nk, T + 1, nn))
+    
+    for n_c in range(nn):
+        for t in range(T + 1):
+            for k_c in range(nk):
+                k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+                viable_x = x_grid >= x_tilde_val[k_c, t, n_c]
+                if np.sum(viable_x) == 0:
+                    print(f'k_c = {k_c}, k_val = {k_val:.6f}')
+                    print('警告：没有可行的x')
+                    b_tilde[k_c, t, n_c] = lambda_vec[t] * k_val
+                    b_grid[:, k_c, t, n_c] = np.full(nb, lambda_vec[t] * k_val)
+                else:
+                    b_tilde[k_c, t, n_c] = np.min(B_hat[k_c, viable_x, t, n_c])
+                    b_grid[:, k_c, t, n_c] = np.linspace(
+                        min(b_tilde[k_c, t, n_c], lambda_vec[t] * k_val),
+                        lambda_vec[t] * k_val, nb).flatten()
+    
+    b_grid = np.transpose(b_grid, (1, 0, 2, 3))  # 转换为(nk,nb,T+1,nn)
+    
+    # 预计算下一期资本k'的上界
+    # 上界取决于资本调整是向上还是向下
+    kp_bar = np.zeros((nk, nb, nx, T + 1, nn))
+    for n_c in range(nn):
+        for t in range(T, -1, -1):
+            kp_bar[:, :, :, t, n_c] = sub_kp_onestep(
+                profit_mat[:, :, t, n_c], b_grid[:, :, t, n_c],
+                k_grid, q_path[t], theta, delta, lambda_vec[t])
+    
+    # 无约束企业的价值函数v(b,x)=V(x)-b
+    # 无约束企业的价值函数: v(b,x,k) = V(x,k)-b
+    val_unc = np.zeros((nk, nb, nx, T + 1, nn))  # 退出后（即继续经营的企业）
+    val0_unc = np.zeros((nk, nb, nx, T + 1, nn))  # 退出前
+    
+    for n_c in range(nn):
+        for t in range(T + 1):
+            for x_c in range(nx):
+                for b_c in range(nb):
+                    for k_c in range(nk):
+                        k_val = k_grid[k_c] if isinstance(k_grid[k_c], (int, float, np.number)) else k_grid[k_c, 0]
+                        b_val = b_grid[k_c, b_c, t, n_c]
+                        val_unc[k_c, b_c, x_c, t, n_c] = V1[k_c, x_c, t, n_c] - b_val
+                        val0_unc[k_c, b_c, x_c, t, n_c] = max(
+                            theta * (1 - delta) * k_val - b_val,
+                            val_unc[k_c, b_c, x_c, t, n_c])
+    
+    # 求解约束企业的问题
+    # 注意：这里需要sub_vfi_onestep_mex，但我们使用Python版本
+    # 如果val_final的维度是(nb,nx,nk)，需要转置为(nk,nb,nx)
+    if val_final.ndim == 3:
+        if val_final.shape[0] == nb:  # (nb,nx,nk)
+            val_final = np.transpose(val_final, (2, 0, 1))  # 转为(nk,nb,nx)
+    
+    val = np.zeros((nk, nb, nx, T + 1, nn))  # v_t(k,b,x,t,imp x grant)
+    pol_kp_ind_con = np.ones((nk, nb, nx, T + 1, nn), dtype=int)
+    
+    # val_next: 进入后价值的终端条件
+    val_next = np.tile(val_final[:, :, :, np.newaxis], (1, 1, 1, nn))  # 维度:(nk,nb,nx,nn)
+    if val0_unc_final is not None:
+        if val0_unc_final.ndim == 3 and val0_unc_final.shape[0] == nb:
+            val0_unc_final = np.transpose(val0_unc_final, (2, 0, 1))
+        val0_unc_next = np.tile(val0_unc_final[:, :, :, np.newaxis], (1, 1, 1, nn))
+    else:
+        val0_unc_next = np.tile(val0_unc[:, :, :, T], (1, 1, 1, nn))
+    
+    # b_tilde_next在最后期是稳态b_tilde
+    # b_grid_next也一样
+    if b_grid_ss.ndim == 2:  # (nk,nb)
+        b_grid_next = np.tile(b_grid_ss[:, :, np.newaxis], (1, 1, nn))  # 维度:(nk,nb,nn)
+    else:
+        b_grid_next = b_grid_ss
+    
+    B_hat_next = np.tile(B_hat_final[:, :, np.newaxis], (1, 1, nn))  # 维度:(nk,nx,nn)
+    
+    if verbose >= 1:
+        print("VFI for constrained firms...")
+    
+    # 使用真正的VFI迭代替换占位符
+    from sub.sub_vfi_onestep import sub_vfi_onestep
+    
+    # 获取VFI参数
+    do_howard = par.get('do_howard', 1)
+    n_howard = par.get('n_howard', 15)
+    max_iter = par.get('max_iter', 1000)
+    tol_vfi = par.get('tol_vfi', 1e-3)
+    
+    # 从T期向后迭代到0期
+    for t in range(T, -1, -1):
+        for n_c in range(nn_vec[t]):
+            if verbose >= 1:
+                print(f't = {t} ; n_c = {n_c}')
+            
+            # 准备当前期的输入
+            # val_c: 约束企业退出后的价值，初始化为val_next（下一期的价值）
+            if t == T:
+                # 最后一期：使用val_next作为初始值
+                val_c = val_next[:, :, :, n_c].copy()  # (nk,nb,nx)
+            else:
+                # 其他期：使用下一期的val作为初始值
+                val_c = val[:, :, :, t+1, n_c].copy()
+            
+            # val0_u: 无约束企业退出前的价值
+            val0_u = val0_unc[:, :, :, t, n_c]  # (nk,nb,nx)
+            
+            # kp_bar: 下一期k'的上界
+            kp_bar_t = kp_bar[:, :, :, t, n_c]  # (nk,nb,nx)
+            
+            # B_hat: 当前期的B_hat
+            B_hat_t = B_hat[:, :, t, n_c]  # (nk,nx)
+            
+            # profit_mat: 当前期的利润矩阵
+            profit_mat_t = profit_mat[:, :, t, n_c]  # (nk,nx)
+            
+            # b_grid: 当前期的债务网格
+            b_grid_t = b_grid[:, :, t, n_c]  # (nk,nb)
+            
+            # q: 当前期的债券价格
+            q_t = q_path[t]
+            
+            # pi_x: 转移概率矩阵（时间不变）
+            pi_x = par['pi_x']  # (nx,nx)
+            
+            # 进行VFI迭代
+            iter_count_vfi = 0
+            dist_vfi = 100
+            
+            while iter_count_vfi < max_iter and dist_vfi > tol_vfi:
+                try:
+                    val_c_new, pol_kp_ind_new = sub_vfi_onestep(
+                        val_c, val0_u, kp_bar_t, B_hat_t,
+                        profit_mat_t, k_grid, b_grid_t, pi_x,
+                        theta, q_t, delta, psi, do_howard, n_howard
+                    )
+                    
+                    dist_vfi = np.max(np.abs(val_c_new - val_c))
+                    iter_count_vfi += 1
+                    val_c = val_c_new
+                    
+                    # 方案A：添加进度输出（即使verbose=1也输出，每5次迭代或每次迭代都输出）
+                    if verbose >= 1:
+                        if iter_count_vfi % 5 == 0 or iter_count_vfi == 1:  # 每5次迭代或第1次迭代输出
+                            print(f'  VFI迭代 {iter_count_vfi}/{max_iter}, 误差 = {dist_vfi:.10e}')
+                    
+                    if verbose >= 2:
+                        print(f'  VFI迭代 {iter_count_vfi}, 误差 = {dist_vfi:.10e}')
+                    
+                except Exception as e:
+                    print(f'错误：sub_vfi_onestep执行失败 (t={t}, n_c={n_c}, 迭代 {iter_count_vfi}): {type(e).__name__}: {str(e)}')
+                    import traceback
+                    traceback.print_exc()
+                    # 如果失败，回退到占位符
+                    print(f'警告：回退到占位符实现')
+                    val_c = val0_u.copy()
+                    pol_kp_ind_new = np.zeros((nk, nb, nx), dtype=int)
+                    break
+            
+            if dist_vfi > tol_vfi and iter_count_vfi >= max_iter:
+                if verbose >= 1:
+                    print(f'警告：约束企业VFI未收敛 (t={t}, n_c={n_c})！误差 = {dist_vfi:.10e}, 迭代次数 = {iter_count_vfi}')
+            
+            # 保存结果
+            val[:, :, :, t, n_c] = val_c
+            pol_kp_ind_con[:, :, :, t, n_c] = pol_kp_ind_new
+            
+            # 如果t >= Tmax，复制到其他n_c
+            if t >= Tmax:
+                for nt_c in range(1, nn):
+                    val[:, :, :, t, nt_c] = val[:, :, :, t, 0]
+                    pol_kp_ind_con[:, :, :, t, nt_c] = pol_kp_ind_con[:, :, :, t, 0]
+        
+        # 更新val_next用于下一期（向前时间）
+        if t > 0:
+            val_next = val[:, :, :, t, :].copy()
+            val0_unc_next = val0_unc[:, :, :, t, :].copy()
+            b_grid_next = b_grid[:, :, t, :].copy()
+            B_hat_next = B_hat[:, :, t, :].copy()
+    
+    if verbose >= 1:
+        print(' ')
+    
+    # 验证val - 使用更友好的错误处理
+    if not np.all(np.isfinite(val)):
+        n_inf = np.sum(~np.isfinite(val))
+        print(f'警告：val包含 {n_inf} 个非有限值')
+        # 将非有限值替换为0
+        val = np.where(np.isfinite(val), val, 0)
+    
+    if np.any(np.isnan(val)):
+        n_nan = np.sum(np.isnan(val))
+        print(f'警告：val包含 {n_nan} 个NaN值')
+        # 将NaN替换为0
+        val = np.where(~np.isnan(val), val, 0)
+    
+    # 更新pol_debt, pol_kp, pol_kp_ind和val
+    # val是所有企业的价值，约束和无约束
+    pol_debt = np.zeros((nk, nb, nx, T + 1, nn))
+    pol_kp = np.zeros((nk, nb, nx, T + 1, nn))
+    pol_kp_ind = np.ones((nk, nb, nx, T + 1, nn), dtype=int)
+    
+    for n_c in range(nn):
+        for t in range(T, -1, -1):
+            try:
+                pol_debt[:, :, :, t, n_c], pol_kp[:, :, :, t, n_c], \
+                pol_kp_ind[:, :, :, t, n_c], val[:, :, :, t, n_c] = \
+                    fun_pol_update(val[:, :, :, t, n_c], val_unc[:, :, :, t, n_c],
+                                  pol_bp_unc[:, :, t, n_c], pol_kp_unc[:, :, t, n_c],
+                                  pol_kp_ind_con[:, :, :, t, n_c], profit_mat[:, :, t, n_c],
+                                  B_hat[:, :, t, n_c], k_grid, b_grid[:, :, t, n_c],
+                                  q_path[t], theta, delta)
+            except Exception as e:
+                print(f'错误：fun_pol_update执行失败 (t={t}, n_c={n_c}): {type(e).__name__}: {str(e)}')
+                import traceback
+                traceback.print_exc()
+                raise
+    
+    # 进入和退出政策
+    # 退出政策 d^l(b,x,kappa,time,impact x grant)
+    pol_exit = np.zeros((nk, nb, nx, T + 1, nn))
+    pol_entry = np.zeros((nk, nb, nx, T + 1, nn))
+    
+    for t in range(T + 1):
+        for n_c in range(nn_vec[t]):
+            try:
+                # 找到进入和退出政策
+                pol_entry[:, :, :, t, n_c], pol_exit[:, :, :, t, n_c], _, _ = \
+                    fun_entry_exit(val[:, :, :, t, n_c], profit_mat[:, :, t, n_c],
+                                 b_grid[:, :, t, n_c], k_grid, theta, delta, cost_e)
+                # 插值
+                pol_entry[:, :, :, t, n_c], pol_exit[:, :, :, t, n_c] = \
+                    interp_entry_exit(pol_entry[:, :, :, t, n_c], pol_exit[:, :, :, t, n_c],
+                                    b_grid[:, :, t, n_c], val[:, :, :, t, n_c],
+                                    profit_mat[:, :, t, n_c], par)
+            except Exception as e:
+                print(f'错误：fun_entry_exit或interp_entry_exit执行失败 (t={t}, n_c={n_c}): {type(e).__name__}: {str(e)}')
+                import traceback
+                traceback.print_exc()
+                raise
+            # 复制到其他n_c
+            if t >= Tmax:
+                for nt_c in range(1, nn):
+                    pol_entry[:, :, :, t, nt_c] = pol_entry[:, :, :, t, 0]
+                    pol_exit[:, :, :, t, nt_c] = pol_exit[:, :, :, t, 0]
+    
+    # 进入者不接收补助，所以我们对所有情况施加s=2（即无补助）
+    for n_c in range(nn):
+        i_c, s_c = ind2sub([ni, ns], n_c)  # i_c = 受冲击指标; s_c = 补助指标
+        if s_c == 0:  # Python索引从0开始
+            # 找到索引nx_c使得i_c相同且补助指标为无补助
+            nx_c = sub2ind([ni, ns], i_c, ns - 1)  # ns-1是无补助
+            pol_entry[:, :, :, :, n_c] = pol_entry[:, :, :, :, nx_c]
+    
+    # 转移动态路径上的初始分布
+    # 注意：由于进入者不接收PPP贷款，phi_dist不依赖于贷款或x0
+    # phi_dist有维度: (nb,nx,nk,T+1,nn) 或 (nk,nb,nx,T+1,nn)
+    if phi_dist_ss.ndim == 3:
+        if phi_dist_ss.shape[0] == nb:  # (nb,nx,nk)
+            phi_dist_ss = np.transpose(phi_dist_ss, (2, 0, 1))  # 转为(nk,nb,nx)
+    
+    phi_dist = fun_phi_tran(phi_dist_ss, b_grid_ss, b_grid, b_tilde, par)
+    
+    # 将解打包到字典中
+    polS = pack_to_struct(
+        val=val, pol_debt=pol_debt, pol_kp_ind=pol_kp_ind, pol_kp=pol_kp,
+        pol_kp_unc=pol_kp_unc, pol_exit=pol_exit, pol_entry=pol_entry,
+        b_tilde=b_tilde, B_hat=B_hat, b_grid=b_grid, phi_dist=phi_dist,
+        grant_vec=grant_vec, V1=V1
+    )
+    
+    return polS
+

@@ -186,3 +186,4 @@ sol, b_grid, phi_dist, conv_flag = fun_vfi1(prices, par)
 
 
 
+

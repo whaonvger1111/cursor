@@ -40,21 +40,15 @@ def sub_Bhat_onestep_fortran(B_hat, pol_kp_unc, profit_mat, x_tilde_val, k_grid,
     """
     nk, nx = B_hat.shape
     
-    # 确保数组是连续的（Fortran需要列优先顺序）
-    if not B_hat.flags.f_contiguous:
+    # 快速检查并转换数组为Fortran顺序（减少条件检查开销）
+    # 假设数组已经是Fortran顺序（由fun_vfi1保证），只在需要时转换
+    if not B_hat.flags.f_contiguous or B_hat.dtype != np.float64:
         B_hat = np.asfortranarray(B_hat, dtype=np.float64)
-    else:
-        B_hat = np.ascontiguousarray(B_hat, dtype=np.float64)
-    
-    if not pol_kp_unc.flags.f_contiguous:
+    if not pol_kp_unc.flags.f_contiguous or pol_kp_unc.dtype != np.float64:
         pol_kp_unc = np.asfortranarray(pol_kp_unc, dtype=np.float64)
-    else:
-        pol_kp_unc = np.ascontiguousarray(pol_kp_unc, dtype=np.float64)
-    
-    if not profit_mat.flags.f_contiguous:
+    if not profit_mat.flags.f_contiguous or profit_mat.dtype != np.float64:
         profit_mat = np.asfortranarray(profit_mat, dtype=np.float64)
-    else:
-        profit_mat = np.ascontiguousarray(profit_mat, dtype=np.float64)
+    
     x_tilde_val = np.ascontiguousarray(x_tilde_val.flatten(), dtype=np.float64)
     k_grid = np.ascontiguousarray(k_grid.flatten(), dtype=np.float64)
     x_grid = np.ascontiguousarray(x_grid.flatten(), dtype=np.float64)

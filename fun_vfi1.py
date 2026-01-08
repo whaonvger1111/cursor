@@ -129,18 +129,20 @@ def fun_vfi1(prices, par):
     
     start_time = time.time()
     
+    # 导入Fortran函数（只导入一次，避免循环内导入开销）
+    from sub.sub_V1_onestep_fortran import sub_V1_onestep_fortran
+    
     # 确认并打印VFI混合编程状态
     print("="*60)
-    print("[VFI混合编程] 无约束企业VFI: 使用Fortran版本（必需）")
+    print("[VFI混合编程] 无约束企业VFI: 使用Fortran快速版本")
     print(f"  - 网格大小: nk={nk}, nx={nx}")
     print(f"  - Howard加速: {'启用' if do_howard == 1 else '禁用'}")
     print(f"  - 最大迭代次数: {max_iter}")
     print(f"  - 收敛容差: {tol_vfi_u:.2e}")
-    print(f"  - 优化: Python BLAS计算EV + Fortran RHS计算")
+    print(f"  - 优化: Python BLAS计算EV + Fortran RHS计算 + 向量化Howard")
     print("="*60)
     
     while ind < max_iter and errter > tol_vfi_u:
-        from sub.sub_V1_onestep_fortran import sub_V1_onestep_fortran
         V2 = sub_V1_onestep_fortran(V1, pi_x, profit_mat, k_grid, q, theta, delta, psi, do_howard)
         
         errter = np.max(np.abs(V1 - V2))
@@ -179,7 +181,7 @@ def fun_vfi1(prices, par):
     pol_kp_unc = sub_investment_onestep(V1, k_grid, pi_x, theta, delta, q, psi)
     
     # 计算B_hat(k,x)作为(21)和(22)的固定点
-    B_hat = np.ones((nk, nx))
+    B_hat = np.ones((nk, nx), dtype=np.float64, order='F')  # 预先使用Fortran顺序
     ind = 0
     errter = 100
     
@@ -197,10 +199,12 @@ def fun_vfi1(prices, par):
         print(f"  - 网格大小: nk={nk}, nx={nx}")
         print(f"  - 最大迭代次数: {max_iter}")
         print(f"  - 收敛容差: {tol_bhat:.2e}")
+        print(f"  - 优化: 快速数组转换 + Fortran插值")
         print("="*60)
     else:
         print("="*60)
-        print("[VFI混合编程] B_hat计算: 使用Python版本")
+        print("[VFI混合编程] B_hat计算: 使用Python版本（优化：np.interp）")
+        print(f"  - 网格大小: nk={nk}, nx={nx}")
         print("="*60)
     
     while ind < max_iter and errter > tol_bhat:
@@ -215,8 +219,11 @@ def fun_vfi1(prices, par):
         
         errter = np.max(np.abs(B_hat - B_hat_new))
         ind += 1
-        # 更新
-        B_hat = B_hat_new
+        # 更新（保持Fortran顺序以减少下次迭代的转换开销）
+        if not B_hat_new.flags.f_contiguous:
+            B_hat = np.asfortranarray(B_hat_new, dtype=np.float64)
+        else:
+            B_hat = B_hat_new
         
         if verbose >= 2:
             print(f'iter = {ind}, err = {errter:.6f}')

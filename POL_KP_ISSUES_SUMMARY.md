@@ -150,3 +150,4 @@ print(f'k_grid范围: [{np.min(k_grid):.6f}, {np.max(k_grid):.6f}]')
 
 
 
+
