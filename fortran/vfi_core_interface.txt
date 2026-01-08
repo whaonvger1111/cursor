@@ -1,0 +1,72 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+module vfi_core ! in fortran/vfi_core.f90
+    subroutine myfind_loc_fortran(x_grid,nx,xi,jl,omega) ! in fortran/vfi_core.f90:vfi_core
+        real(kind=8) dimension(nx),intent(in) :: x_grid
+        integer, optional,intent(in),check(shape(x_grid, 0) == nx),depend(x_grid) :: nx=shape(x_grid, 0)
+        real(kind=8) intent(in) :: xi
+        integer intent(out) :: jl
+        real(kind=8) intent(out) :: omega
+    end subroutine myfind_loc_fortran
+    function myinterp1_fortran(x_grid,y_grid,nx,xi) result (yi) ! in fortran/vfi_core.f90:vfi_core
+        real(kind=8) dimension(nx),intent(in) :: x_grid
+        real(kind=8) dimension(nx),intent(in),depend(nx) :: y_grid
+        integer, optional,intent(in),check(shape(x_grid, 0) == nx),depend(x_grid) :: nx=shape(x_grid, 0)
+        real(kind=8) intent(in) :: xi
+        real(kind=8) :: yi
+    end function myinterp1_fortran
+    function adjcost_scal_fortran(kprime,k,theta,delta) result (adj) ! in fortran/vfi_core.f90:vfi_core
+        real(kind=8) intent(in) :: kprime
+        real(kind=8) intent(in) :: k
+        real(kind=8) intent(in) :: theta
+        real(kind=8) intent(in) :: delta
+        real(kind=8) :: adj
+    end function adjcost_scal_fortran
+    subroutine step2_liquidation(val_c,val0_c,profit_mat,k_grid,b_grid,theta,delta,nk,nb,nx) ! in fortran/vfi_core.f90:vfi_core
+        real(kind=8) dimension(nk,nb,nx),intent(in),depend(nb,nx,nk) :: val_c
+        real(kind=8) dimension(nk,nb,nx),intent(out),depend(nb,nx,nk) :: val0_c
+        real(kind=8) dimension(nk,nx),intent(in),depend(nx,nk) :: profit_mat
+        real(kind=8) dimension(nk),intent(in),depend(nk) :: k_grid
+        real(kind=8) dimension(nk,nb),intent(in),depend(nb,nk) :: b_grid
+        real(kind=8) intent(in) :: theta
+        real(kind=8) intent(in) :: delta
+        integer intent(in) :: nk
+        integer intent(in) :: nb
+        integer intent(in) :: nx
+    end subroutine step2_liquidation
+    subroutine step3_constraint(val0_c,val0_u,b_hat,b_grid,val0,is_c,nk,nb,nx) ! in fortran/vfi_core.f90:vfi_core
+        real(kind=8) dimension(nk,nb,nx),intent(in),depend(nb,nx,nk) :: val0_c
+        real(kind=8) dimension(nk,nb,nx),intent(in),depend(nb,nx,nk) :: val0_u
+        real(kind=8) dimension(nk,nx),intent(in),depend(nx,nk) :: b_hat
+        real(kind=8) dimension(nk,nb),intent(in),depend(nb,nk) :: b_grid
+        real(kind=8) dimension(nk,nb,nx),intent(out),depend(nb,nx,nk) :: val0
+        integer dimension(nk,nb,nx),intent(out),depend(nb,nx,nk) :: is_c
+        integer intent(in) :: nk
+        integer intent(in) :: nb
+        integer intent(in) :: nx
+    end subroutine step3_constraint
+    subroutine step4_bellman(val0,pi_x,kp_bar,profit_mat,k_grid,b_grid,b_hat,is_c,theta,q,delta,psi,val_c_new,pol_kp_ind,nk,nb,nx) ! in fortran/vfi_core.f90:vfi_core
+        real(kind=8) dimension(nk,nb,nx),intent(in),depend(nb,nx,nk) :: val0
+        real(kind=8) dimension(nx,nx),intent(in),depend(nx) :: pi_x
+        real(kind=8) dimension(nk,nb,nx),intent(in),depend(nb,nx,nk) :: kp_bar
+        real(kind=8) dimension(nk,nx),intent(in),depend(nx,nk) :: profit_mat
+        real(kind=8) dimension(nk),intent(in),depend(nk) :: k_grid
+        real(kind=8) dimension(nk,nb),intent(in),depend(nb,nk) :: b_grid
+        real(kind=8) dimension(nk,nx),intent(in),depend(nx,nk) :: b_hat
+        integer dimension(nk,nb,nx),intent(in),depend(nb,nx,nk) :: is_c
+        real(kind=8) intent(in) :: theta
+        real(kind=8) intent(in) :: q
+        real(kind=8) intent(in) :: delta
+        real(kind=8) intent(in) :: psi
+        real(kind=8) dimension(nk,nb,nx),intent(out),depend(nb,nx,nk) :: val_c_new
+        integer dimension(nk,nb,nx),intent(out),depend(nb,nx,nk) :: pol_kp_ind
+        integer intent(in) :: nk
+        integer intent(in) :: nb
+        integer intent(in) :: nx
+    end subroutine step4_bellman
+end module vfi_core
+
+! This file was auto-generated with f2py (version:2.3.1).
+! See:
+! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e
