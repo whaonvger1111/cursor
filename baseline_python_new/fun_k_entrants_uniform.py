@@ -32,3 +32,4 @@ def fun_k_entrants_uniform(k_grid, k_min, k_max):
     
     return k_prob
 
+

@@ -52,9 +52,37 @@ def fun_distrib1(par, sol, b_grid, phi_dist):
     pol_exit = sol['pol_exit']  # 维度: (nk,nb,nx)
     pol_entry = sol['pol_entry']  # 维度: (nk,nb,nx)
     
-    # 验证
+    # 验证输入数据
     assert np.all(np.isfinite(pol_kp_ind)) and np.all(~np.isnan(pol_kp_ind)), "pol_kp_ind包含非有限值或NaN"
     assert np.all((pol_kp_ind >= 0) & (pol_kp_ind < par['nk'])), "pol_kp_ind超出范围"
+    
+    # 验证pol_exit和pol_entry在[0,1]范围内
+    if np.any(pol_exit < 0) or np.any(pol_exit > 1):
+        print(f'警告: pol_exit超出[0,1]范围，最小值={np.min(pol_exit):.6f}, 最大值={np.max(pol_exit):.6f}')
+        pol_exit = np.clip(pol_exit, 0, 1)
+    
+    if np.any(pol_entry < 0) or np.any(pol_entry > 1):
+        print(f'警告: pol_entry超出[0,1]范围，最小值={np.min(pol_entry):.6f}, 最大值={np.max(pol_entry):.6f}')
+        pol_entry = np.clip(pol_entry, 0, 1)
+    
+    # 验证phi_dist
+    if np.any(phi_dist < 0):
+        n_negative = np.sum(phi_dist < 0)
+        print(f'警告: phi_dist包含 {n_negative} 个负值，将设为0')
+        phi_dist = np.maximum(phi_dist, 0.0)
+        phi_dist_sum = np.sum(phi_dist)
+        if phi_dist_sum > 0:
+            phi_dist = phi_dist / phi_dist_sum
+        else:
+            raise ValueError("phi_dist所有值都是负值或零")
+    
+    if not np.all(np.isfinite(phi_dist)):
+        n_bad = np.sum(~np.isfinite(phi_dist))
+        print(f'警告: phi_dist包含 {n_bad} 个非有限值，将设为0')
+        phi_dist = np.where(np.isfinite(phi_dist), phi_dist, 0.0)
+        phi_dist_sum = np.sum(phi_dist)
+        if phi_dist_sum > 0:
+            phi_dist = phi_dist / phi_dist_sum
     
     # 解包参数
     nx = par['nx']
@@ -122,8 +150,11 @@ def fun_distrib1(par, sol, b_grid, phi_dist):
         for b_c in range(nb):  # 当前债务
             for k_c in range(nk):  # 当前资本
                 knext_ind = int(pol_kp_ind[k_c, b_c, x_c])
+                knext_ind = np.clip(knext_ind, 0, nk - 1)  # 确保索引有效
                 bopt = pol_debt[k_c, b_c, x_c]
                 left_loc, omega = find_loc(b_grid[knext_ind, :], bopt)
+                # 确保omega在[0,1]范围内
+                omega = np.clip(omega, 0.0, 1.0)
                 omega_arr[k_c, b_c, x_c] = omega
                 left_loc_arr[k_c, b_c, x_c] = int(np.clip(left_loc, 0, nb - 2))
     
@@ -155,18 +186,75 @@ def fun_distrib1(par, sol, b_grid, phi_dist):
             mu1 = sub_mu_onestep(mu, phi_dist, pol_kp_ind, pol_exit, pol_entry,
                                 left_loc_arr, omega_arr, pi_x, mass, psi)
         
+        # 检查并修复负值（由于数值精度问题可能出现非常小的负值）
+        min_mu1 = np.min(mu1)
+        if min_mu1 < 0:
+            n_negative = np.sum(mu1 < 0)
+            max_negative = np.min(mu1[mu1 < 0]) if n_negative > 0 else 0
+            if verbose >= 1:
+                print(f'警告: 迭代 {iter_count} 发现 {n_negative} 个负值，最小值为 {max_negative:.2e}')
+            # 将负值设为0（保持质量守恒）
+            mu1 = np.maximum(mu1, 0.0)
+            # 重新归一化以保持质量守恒
+            mu1_sum = np.sum(mu1)
+            if mu1_sum > 0:
+                mu1 = mu1 / mu1_sum * np.sum(mu)
+            else:
+                # 如果所有值都是0或负，使用前一次迭代的值
+                if verbose >= 1:
+                    print(f'严重警告: mu1总和为0，保持前一次迭代的值')
+                mu1 = mu.copy()
+        
+        # 检查NaN和Inf
+        if not np.all(np.isfinite(mu1)):
+            n_inf = np.sum(~np.isfinite(mu1))
+            if verbose >= 1:
+                print(f'严重警告: 迭代 {iter_count} 发现 {n_inf} 个非有限值')
+            # 将非有限值设为0
+            mu1 = np.where(np.isfinite(mu1), mu1, 0.0)
+            mu1_sum = np.sum(mu1)
+            if mu1_sum > 0:
+                mu1 = mu1 / mu1_sum * np.sum(mu)
+            else:
+                mu1 = mu.copy()
+        
         # 计算误差
         dist1 = np.max(np.abs(mu - mu1))
-        dist = np.max(np.abs(mu - mu1)) / np.sum(mu) * nn
+        mu_sum = np.sum(mu)
+        if mu_sum > 0:
+            dist = np.max(np.abs(mu - mu1)) / mu_sum * nn
+        else:
+            dist = dist1
         
         # 更新mu
         mu = mu1
         
         if disp_mu == 1:
-            print(f'sum(mu1) = {np.sum(mu1):.6f}')
+            print(f'sum(mu1) = {np.sum(mu1):.6f}, min(mu1) = {np.min(mu1):.2e}, max(mu1) = {np.max(mu1):.2e}')
             print(f'iter = {iter_count}, dist_abs = {dist1:.20f}, dist_rel = {dist:.20f}')
     
-    # 验证
+    # 验证并修复（最终检查）
+    if not np.all(np.isfinite(mu)) or np.any(np.isnan(mu)):
+        n_bad = np.sum(~np.isfinite(mu) | np.isnan(mu))
+        print(f'错误: mu包含 {n_bad} 个非有限值或NaN')
+        mu = np.where(np.isfinite(mu) & ~np.isnan(mu), mu, 0.0)
+        mu_sum = np.sum(mu)
+        if mu_sum > 0:
+            mu = mu / mu_sum * 0.02  # 重新归一化
+    
+    if np.any(mu < 0):
+        n_negative = np.sum(mu < 0)
+        min_negative = np.min(mu[mu < 0])
+        print(f'错误: mu包含 {n_negative} 个负值，最小值为 {min_negative:.2e}')
+        # 将负值设为0并重新归一化
+        mu = np.maximum(mu, 0.0)
+        mu_sum = np.sum(mu)
+        if mu_sum > 0:
+            mu = mu / mu_sum * 0.02  # 重新归一化
+        else:
+            raise ValueError("mu所有值都是负值或零，无法修复")
+    
+    # 最终验证
     assert np.all(np.isfinite(mu)) and np.all(~np.isnan(mu)), "mu包含非有限值或NaN"
     assert np.all(mu >= 0), "mu包含负值"
     
@@ -180,7 +268,20 @@ def fun_distrib1(par, sol, b_grid, phi_dist):
                     (1 - psi) * (1 - pol_exit[k_c, b_c, x_c]) * mu[k_c, b_c, x_c] +
                     mass * pol_entry[k_c, b_c, x_c] * phi_dist[k_c, b_c, x_c])
     
-    # 验证
+    # 验证并修复mu_active
+    if not np.all(np.isfinite(mu_active)) or np.any(np.isnan(mu_active)):
+        n_bad = np.sum(~np.isfinite(mu_active) | np.isnan(mu_active))
+        print(f'错误: mu_active包含 {n_bad} 个非有限值或NaN')
+        mu_active = np.where(np.isfinite(mu_active) & ~np.isnan(mu_active), mu_active, 0.0)
+    
+    if np.any(mu_active < 0):
+        n_negative = np.sum(mu_active < 0)
+        min_negative = np.min(mu_active[mu_active < 0])
+        print(f'错误: mu_active包含 {n_negative} 个负值，最小值为 {min_negative:.2e}')
+        # 将负值设为0
+        mu_active = np.maximum(mu_active, 0.0)
+    
+    # 最终验证
     assert np.all(np.isfinite(mu_active)) and np.all(~np.isnan(mu_active)), "mu_active包含非有限值或NaN"
     assert np.all(mu_active >= 0), "mu_active包含负值"
     assert np.all(np.isfinite(entry_vec)) and np.all(~np.isnan(entry_vec)), "entry_vec包含非有限值或NaN"

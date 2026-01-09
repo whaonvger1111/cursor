@@ -1,0 +1,5 @@
+eta_i:         0.12
+v_corp:        -0.007000  
+util_shift:    -0.184299  
+lsupply_shift: 0.249982  
+rho_shock:     0.11  

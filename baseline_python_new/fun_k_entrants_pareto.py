@@ -34,3 +34,4 @@ def fun_k_entrants_pareto(k_grid, k_min, k_alpha):
     
     return k_prob
 
+

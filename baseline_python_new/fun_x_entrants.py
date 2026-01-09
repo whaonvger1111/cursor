@@ -49,3 +49,4 @@ def fun_x_entrants(x_grid, x_prob, epsx, rhox, mean_x, xi):
     
     return x0_prob
 
+

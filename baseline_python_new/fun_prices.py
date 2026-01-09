@@ -59,3 +59,4 @@ def fun_prices(par):
     
     return prices
 
+

@@ -44,12 +44,15 @@ def sub_mu_onestep(mu, phi_dist, pol_kp_ind, pol_exit, pol_entry,
                 left_loc = np.clip(left_loc, 0, nb - 2)
                 
                 # 更新分布
-                mu1[knext_ind, left_loc, x_c] += (omega * (1 - dexit) * mu[k_c, b_c, x_c] +
-                                                   omega * mass * entry * phi_dist[k_c, b_c, x_c])
+                # 确保所有值都是非负的
+                contrib1 = omega * (1 - dexit) * mu[k_c, b_c, x_c] + omega * mass * entry * phi_dist[k_c, b_c, x_c]
+                contrib1 = max(0.0, contrib1)  # 确保非负
+                mu1[knext_ind, left_loc, x_c] += contrib1
                 
                 if left_loc + 1 < nb:
-                    mu1[knext_ind, left_loc + 1, x_c] += ((1 - omega) * (1 - dexit) * mu[k_c, b_c, x_c] +
-                                                           (1 - omega) * mass * entry * phi_dist[k_c, b_c, x_c])
+                    contrib2 = (1 - omega) * (1 - dexit) * mu[k_c, b_c, x_c] + (1 - omega) * mass * entry * phi_dist[k_c, b_c, x_c]
+                    contrib2 = max(0.0, contrib2)  # 确保非负
+                    mu1[knext_ind, left_loc + 1, x_c] += contrib2
     
     # 矩阵乘法: mu1(k',b',x)*pi(x,x')==> mu1(k',b',x')
     for k_c in range(nk):

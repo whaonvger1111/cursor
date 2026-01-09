@@ -57,3 +57,4 @@ def fun_entry_exit(val, profit_mat, b_grid, k_grid, theta, delta, cost_e):
     
     return pol_entry, pol_exit, pol_exit_forced, pol_exit_vol
 
+
