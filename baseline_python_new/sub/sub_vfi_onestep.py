@@ -221,21 +221,33 @@ def sub_vfi_onestep(val_c, val0_u, kp_bar, B_hat, profit_mat, k_grid, b_grid,
                 b_val = b_grid[k_c, b_c]
                 profit_val = profit_mat[k_c, x_c]
                 kp_ub = kp_bar[k_c, b_c, x_c]
-                kp_ub_ind = np.searchsorted(k_grid, kp_ub, side='right')
-                kp_ub_ind = min(kp_ub_ind, nk - 1)
+                # MATLAB: kp_ub_ind = find(k_grid<=kp_ub, 1, 'last')
+                # 找到最后一个满足k_grid<=kp_ub的索引（0-based）
+                kp_ub_indices = np.where(k_grid <= kp_ub)[0]
+                if len(kp_ub_indices) > 0:
+                    kp_ub_ind = kp_ub_indices[-1]  # 最后一个满足条件的索引
+                else:
+                    kp_ub_ind = -1  # 没有满足条件的，但这种情况不应该发生
                 
                 if is_c[k_c, b_c, x_c] == 1 and profit_val - b_val + theta * (1 - delta) * k_val >= 0:
                     # 为每个k' \in k_grid创建Bellman方程25的RHS
                     rhs_vec = np.full(nk, -100000.0)
                     
-                    for kp_c in range(kp_ub_ind + 1):
-                        kp_val = k_grid[kp_c]
-                        b_grid_kp = b_grid[kp_c, :]
-                        bprime = max(b_grid_kp[0], (1 / q) * (b_val - profit_val + 
-                                                              Fun.adjcost_scal(kp_val, k_val, theta, delta)))
-                        v0_int = myinterp1(b_grid_kp, EVx[kp_c, :], bprime, 1)
-                        rhs_vec[kp_c] = q * (psi * (theta * (1 - delta) * kp_val - bprime) + 
-                                            (1 - psi) * v0_int)
+                    # MATLAB: for kp_c = 1:kp_ub_ind (1-based, 包含kp_ub_ind)
+                    # Python: for kp_c in range(kp_ub_ind + 1) (0-based, 包含kp_ub_ind)
+                    # 但MATLAB的kp_ub_ind是1-based的最后一个索引，Python需要转换为0-based
+                    # 如果MATLAB的kp_ub_ind = 10，循环1到10（10次）
+                    # Python应该循环0到9（10次），所以kp_ub_ind应该是9
+                    # 但我们已经用0-based索引找到了kp_ub_ind，所以直接使用
+                    if kp_ub_ind >= 0:
+                        for kp_c in range(kp_ub_ind + 1):
+                            kp_val = k_grid[kp_c]
+                            b_grid_kp = b_grid[kp_c, :]
+                            bprime = max(b_grid_kp[0], (1 / q) * (b_val - profit_val + 
+                                                                  Fun.adjcost_scal(kp_val, k_val, theta, delta)))
+                            v0_int = myinterp1(b_grid_kp, EVx[kp_c, :], bprime, 1)
+                            rhs_vec[kp_c] = q * (psi * (theta * (1 - delta) * kp_val - bprime) + 
+                                                (1 - psi) * v0_int)
                     
                     max_ind = np.argmax(rhs_vec)
                     pol_kp_ind[k_c, b_c, x_c] = max_ind

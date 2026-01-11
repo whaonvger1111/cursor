@@ -126,13 +126,14 @@ contains
         kprime_vec = k_grid
         
         ! 进行最大化（使用OpenMP并行化）
-        !$omp parallel do private(x_c, EV_x, profit_x, kp_c, k_c, kprime_val, k_today_val, &
+        ! 注意：RHS矩阵必须在每个线程中私有，避免竞争条件
+        !$omp parallel do private(x_c, EV_x, profit_x, RHS, kp_c, k_c, kprime_val, k_today_val, &
         !$omp& max_val, max_ind, adj_val, rhs_val)
         do x_c = 1, nx
             EV_x = EV(:, x_c)
             profit_x = profit_mat(:, x_c)
             
-            ! 构建RHS矩阵 (nk, nk)
+            ! 构建RHS矩阵 (nk, nk) - 每个线程私有
             ! 向量化计算调整成本
             do kp_c = 1, nk
                 kprime_val = kprime_vec(kp_c)
@@ -145,7 +146,11 @@ contains
                     end if
                     
                     ! 构建RHS
-                    rhs_val = profit_x(kp_c) - adj_val + &
+                    ! 修复：profit_x应该使用k_c而不是kp_c，与MATLAB一致
+                    ! MATLAB: RHS[i,j] = profit_mat[j, x_c] - adjcost_mat[i,j]
+                    ! 修复前: RHS[i,j] = profit_mat[i, x_c] - adj_val (错误)
+                    ! 修复后: RHS[i,j] = profit_mat[j, x_c] - adj_val (正确)
+                    rhs_val = profit_x(k_c) - adj_val + &
                               q * (psi * theta * (1.0d0 - delta) * kprime_val + &
                                    (1.0d0 - psi) * EV_x(kp_c))
                     RHS(kp_c, k_c) = rhs_val
@@ -196,13 +201,14 @@ contains
         kprime_vec = k_grid
         
         ! 进行最大化（使用OpenMP并行化）
-        !$omp parallel do private(x_c, EV_x, profit_x, kp_c, k_c, kprime_val, k_today_val, &
-        !$omp& max_val, max_ind, adj_val)
+        ! 注意：RHS矩阵必须在每个线程中私有，避免竞争条件
+        !$omp parallel do private(x_c, EV_x, profit_x, RHS, kp_c, k_c, kprime_val, k_today_val, &
+        !$omp& max_val, max_ind, adj_val, rhs_val)
         do x_c = 1, nx
             EV_x = EV(:, x_c)
             profit_x = profit_mat(:, x_c)
             
-            ! 构建RHS矩阵 (nk, nk)
+            ! 构建RHS矩阵 (nk, nk) - 每个线程私有
             do kp_c = 1, nk
                 kprime_val = kprime_vec(kp_c)
                 do k_c = 1, nk
@@ -213,7 +219,11 @@ contains
                         adj_val = theta * adj_val
                     end if
                     ! 构建RHS
-                    RHS(kp_c, k_c) = profit_x(kp_c) - adj_val + &
+                    ! 修复：profit_x应该使用k_c而不是kp_c，与MATLAB一致
+                    ! MATLAB: RHS[i,j] = profit_mat[j, x_c] - adjcost_mat[i,j]
+                    ! 修复前: RHS[i,j] = profit_mat[i, x_c] - adj_val (错误)
+                    ! 修复后: RHS[i,j] = profit_mat[j, x_c] - adj_val (正确)
+                    RHS(kp_c, k_c) = profit_x(k_c) - adj_val + &
                               q * (psi * theta * (1.0d0 - delta) * kprime_val + &
                                    (1.0d0 - psi) * EV_x(kp_c))
                 end do
@@ -387,7 +397,10 @@ contains
                         ! 为每个k' \in k_grid创建Bellman方程25的RHS
                         rhs_vec = -100000.0d0
                         
-                        do kp_c = 1, kp_ub_ind + 1
+                        ! MATLAB: for kp_c = 1:kp_ub_ind (1-based, 包含kp_ub_ind)
+                        ! Fortran: do kp_c = 1, kp_ub_ind (1-based, 包含kp_ub_ind)
+                        ! 修复: 改为 do kp_c = 1, kp_ub_ind 以匹配MATLAB
+                        do kp_c = 1, kp_ub_ind
                             kp_val = k_grid(kp_c)
                             
                             ! 计算调整成本
@@ -413,7 +426,7 @@ contains
                         ! 找到最大值及其索引
                         max_val = rhs_vec(1)
                         max_ind = 0  ! Python索引从0开始
-                        do kp_c = 2, kp_ub_ind + 1
+                        do kp_c = 2, kp_ub_ind
                             if (rhs_vec(kp_c) > max_val) then
                                 max_val = rhs_vec(kp_c)
                                 max_ind = kp_c - 1  ! Python索引从0开始
