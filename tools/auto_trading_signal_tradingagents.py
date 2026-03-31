@@ -5,6 +5,12 @@
 
 周期性调用 TradingAgents 多智能体图，输出交易决策提示（框架为研究/模拟用途，不构成投资建议）。
 需已安装依赖（pip install -e .）并配置 API 密钥，例如：set OPENAI_API_KEY=...
+
+A 股（沪深）说明：
+  默认数据来自 yfinance，代码需用 Yahoo 后缀：沪市 6 开头加 .SS，深市 0/3 开头加 .SZ。
+  例：贵州茅台 600519.SS，平安银行 000001.SZ。最终 JSON 里 decision 字段经框架提炼为
+  BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL，其中 BUY/SELL 即买入/卖出类提示。
+  港股示例：0700.HK。若某标的 yfinance 无数据，需自行换数据源或改 TradingAgents 数据层。
 """
 from __future__ import annotations
 
@@ -87,7 +93,7 @@ def main() -> None:
     p.add_argument(
         "--tickers",
         default=os.getenv("TRADING_SIGNAL_TICKERS", "NVDA"),
-        help="逗号分隔股票代码",
+        help="逗号分隔代码；A 股用 Yahoo 格式，如 600519.SS,000001.SZ",
     )
     p.add_argument(
         "--trade-date",
