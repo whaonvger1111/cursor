@@ -10,7 +10,9 @@ A 股（沪深）说明：
   默认数据来自 yfinance，代码需用 Yahoo 后缀：沪市 6 开头加 .SS，深市 0/3 开头加 .SZ。
   例：贵州茅台 600519.SS，平安银行 000001.SZ。最终 JSON 里 decision 字段经框架提炼为
   BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL，其中 BUY/SELL 即买入/卖出类提示。
-  港股示例：0700.HK。若某标的 yfinance 无数据，需自行换数据源或改 TradingAgents 数据层。
+  港股示例：0700.HK。  若某标的 yfinance 无数据，需自行换数据源或改 TradingAgents 数据层。
+
+定时运行（Windows 每个交易日 09:00）：见同仓库 tools/windows/README_scheduling.md
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ import sys
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 # 解析 TradingAgents 根目录
 _env_root = os.environ.get("TRADINGAGENTS_ROOT", "").strip()
@@ -49,6 +52,13 @@ load_dotenv(_TA_ROOT / ".env")
 
 
 def _today_str() -> str:
+    """交易日日期：默认本机日历日；设置 TRADING_SIGNAL_TIMEZONE=Asia/Shanghai 时用该时区的「今天」。"""
+    tz_name = os.getenv("TRADING_SIGNAL_TIMEZONE", "").strip()
+    if tz_name:
+        try:
+            return datetime.now(ZoneInfo(tz_name)).date().isoformat()
+        except (ValueError, OSError):
+            pass
     return date.today().isoformat()
 
 
