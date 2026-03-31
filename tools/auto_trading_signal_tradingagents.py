@@ -12,7 +12,8 @@ A 股（沪深）说明：
   BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL，其中 BUY/SELL 即买入/卖出类提示。
   港股示例：0700.HK。  若某标的 yfinance 无数据，需自行换数据源或改 TradingAgents 数据层。
 
-定时运行（Windows 每个交易日 09:00）：见同仓库 tools/windows/README_scheduling.md
+定时运行（Windows 每个交易日 09:00）：见 tools/windows/README_scheduling.md
+  Cursor Automations（云端定时）：见仓库根目录 AUTOMATIONS.md
 """
 from __future__ import annotations
 

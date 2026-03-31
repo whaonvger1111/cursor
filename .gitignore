@@ -72,6 +72,7 @@ cache/
 
 # 本地克隆的第三方项目（仅作参考，不提交）
 trading_agents_src/
+tradingagents_vendor/
 
 # 操作系统文件
 .DS_Store
