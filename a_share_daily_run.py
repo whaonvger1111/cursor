@@ -15,8 +15,8 @@ A 股日线批处理：调用 TradingAgents 多智能体图，对股票池逐一
   使用「上一完整交易日」的日线（与未收盘的当日 K 线一致）；15:00 及之后使用「当日」。
 - 未安装日历时回退为仅跳过周末（长假仍可能偏差），报告与 JSON 中会标注。
 
-默认启用分析师：market, news, fundamentals（不含 social，减少对 A 股噪声）。
-环境变量 A_SHARE_ANALYSTS 可覆盖，例如：market,social,news,fundamentals
+默认启用分析师：market, news, fundamentals；若 A_SHARE_ENRICHED_NEWS=1（默认），会自动加入 social 以使用中文舆情工具。
+环境变量 A_SHARE_ANALYSTS 可覆盖；A_SHARE_ENRICHED_NEWS=0 可关闭 A 股增强工具且不自动加 social。
 
 非投资建议；数据依赖 yfinance；A 股代码需带 .SS / .SZ / .BJ。
 """
@@ -143,6 +143,12 @@ def _build_config() -> dict:
         "fundamental_data": "yfinance",
         "news_data": "yfinance",
     }
+    # A 股：为新闻/社交分析师增加中文检索与宏观摘要工具（见 trading_graph._build_analyst_options）
+    cfg["a_share_enriched_news"] = os.getenv("A_SHARE_ENRICHED_NEWS", "1").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     return cfg
 
 
@@ -153,12 +159,14 @@ def main() -> None:
     now_cn = datetime.now(CN_TZ)
     trade_date, trade_date_reason = _resolve_trade_date(now_cn)
     tickers = _load_universe(UNIVERSE_FILE)
+
+    cfg = _build_config()
     analysts = _parse_analyst_list()
+    if cfg.get("a_share_enriched_news") and "social" not in analysts:
+        analysts = analysts + ["social"]
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORT_DIR / f"a_share_report_{trade_date.isoformat()}.md"
-
-    cfg = _build_config()
     graph = TradingAgentsGraph(
         selected_analysts=analysts,
         debug=False,
@@ -177,7 +185,7 @@ def main() -> None:
         "",
         f"- 运行时间（北京时间）: {now_cn.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"- 使用的日线交易日 trade_date: **{trade_date}** — {reason_zh}",
-        f"- 启用分析师: {', '.join(analysts)}（默认不含 social，可用 A_SHARE_ANALYSTS 修改）",
+        f"- 启用分析师: {', '.join(analysts)}（A_SHARE_ENRICHED_NEWS=1 时会自动加入 social 以跑中文舆情工具；可用 A_SHARE_ANALYSTS / A_SHARE_ENRICHED_NEWS 调整）",
         f"- 标的数量: {len(tickers)}",
         "",
         "> 框架仅供研究；输出不构成投资建议。",

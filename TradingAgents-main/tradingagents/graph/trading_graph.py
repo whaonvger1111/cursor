@@ -30,7 +30,11 @@ from tradingagents.agents.utils.agent_utils import (
     get_income_statement,
     get_news,
     get_insider_transactions,
-    get_global_news
+    get_global_news,
+)
+from tradingagents.agents.utils.news_data_tools import (
+    get_a_share_macro_news,
+    get_a_share_company_sentiment,
 )
 
 from .conditional_logic import ConditionalLogic
@@ -104,6 +108,8 @@ class TradingAgentsGraph:
         # Create tool nodes
         self.tool_nodes = self._create_tool_nodes()
 
+        analyst_options = self._build_analyst_options()
+
         # Initialize components
         self.conditional_logic = ConditionalLogic(
             max_debate_rounds=self.config["max_debate_rounds"],
@@ -119,6 +125,7 @@ class TradingAgentsGraph:
             self.invest_judge_memory,
             self.portfolio_manager_memory,
             self.conditional_logic,
+            analyst_options=analyst_options,
         )
 
         self.propagator = Propagator()
@@ -155,8 +162,40 @@ class TradingAgentsGraph:
 
         return kwargs
 
+    def _build_analyst_options(self) -> Dict[str, Any]:
+        """Optional A-share enriched prompts/tools for news and social analysts."""
+        if not self.config.get("a_share_enriched_news"):
+            return {}
+        extra_news = (
+            " For China A-share context: you MUST call get_a_share_macro_news(curr_date, look_back_days, limit) "
+            "for policy/macro/A-share liquidity headlines, in addition to get_global_news and get_news. "
+            "Cross-check whether US-centric global headlines actually affect A-shares (FX, ADR, policy spillovers). "
+            "Note regulatory and disclosure rules (CN) and that yfinance search may miss Chinese-only sources."
+        )
+        extra_social = (
+            " For China A-share context: call get_a_share_company_sentiment(ticker, start_date, end_date) "
+            "for Chinese-language discussion and portal-style headlines about this company (supplement to get_news). "
+            "Interpret as topic/sentiment clues, not real-time order flow; flag rumor risk and verify against filings."
+        )
+        return {
+            "news": {
+                "extra_tools": [get_a_share_macro_news],
+                "extra_system_prompt": extra_news,
+            },
+            "social": {
+                "extra_tools": [get_a_share_company_sentiment],
+                "extra_system_prompt": extra_social,
+            },
+        }
+
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
+        a_share_news_tools = []
+        a_share_social_tools = []
+        if self.config.get("a_share_enriched_news"):
+            a_share_news_tools = [get_a_share_macro_news]
+            a_share_social_tools = [get_a_share_company_sentiment]
+
         return {
             "market": ToolNode(
                 [
@@ -170,6 +209,7 @@ class TradingAgentsGraph:
                 [
                     # News tools for social media analysis
                     get_news,
+                    *a_share_social_tools,
                 ]
             ),
             "news": ToolNode(
@@ -178,6 +218,7 @@ class TradingAgentsGraph:
                     get_news,
                     get_global_news,
                     get_insider_transactions,
+                    *a_share_news_tools,
                 ]
             ),
             "fundamentals": ToolNode(

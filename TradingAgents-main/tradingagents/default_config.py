@@ -35,4 +35,7 @@ DEFAULT_CONFIG = {
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
     },
+    # When True, news/social analysts get extra yfinance Search tools with Chinese A-share queries
+    # (macro/policy digest + company discussion digest). See news_data_tools.get_a_share_*.
+    "a_share_enriched_news": False,
 }
