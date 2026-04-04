@@ -38,4 +38,6 @@ DEFAULT_CONFIG = {
     # When True, news/social analysts get extra yfinance Search tools with Chinese A-share queries
     # (macro/policy digest + company discussion digest). See news_data_tools.get_a_share_*.
     "a_share_enriched_news": False,
+    # When True and akshare is installed, append Eastmoney / CCTV / Caixin (via AkShare) to A-share digests
+    "a_share_use_akshare": False,
 }

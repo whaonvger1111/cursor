@@ -4,7 +4,7 @@ A 股日线批处理：调用 TradingAgents 多智能体图，对股票池逐一
 
 用法（需已配置 LLM API 密钥，见 TradingAgents-main/.env.example）：
   cd /workspace && pip install -e ./TradingAgents-main
-  pip install -r requirements_a_share.txt   # 交易日历（含长假），强烈推荐
+  pip install -r requirements_a_share.txt   # 交易日历 + 可选 akshare（中文财经源）
   python a_share_daily_run.py
 
 建议在用户本机 crontab 用北京时间 9:30 触发（示例）：
@@ -149,6 +149,12 @@ def _build_config() -> dict:
         "true",
         "yes",
     )
+    # AkShare：东方财富/央视/财新等中文源（需 pip install akshare）
+    cfg["a_share_use_akshare"] = os.getenv("A_SHARE_USE_AKSHARE", "1").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     return cfg
 
 
@@ -185,7 +191,8 @@ def main() -> None:
         "",
         f"- 运行时间（北京时间）: {now_cn.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"- 使用的日线交易日 trade_date: **{trade_date}** — {reason_zh}",
-        f"- 启用分析师: {', '.join(analysts)}（A_SHARE_ENRICHED_NEWS=1 时会自动加入 social 以跑中文舆情工具；可用 A_SHARE_ANALYSTS / A_SHARE_ENRICHED_NEWS 调整）",
+        f"- 启用分析师: {', '.join(analysts)}（A_SHARE_ENRICHED_NEWS=1 时会自动加入 social；可用 A_SHARE_ANALYSTS / A_SHARE_ENRICHED_NEWS 调整）",
+        f"- 中文门户数据（AkShare / 东财·央视·财新等）: **{'开启' if cfg.get('a_share_use_akshare') else '关闭'}**（`A_SHARE_USE_AKSHARE`，需 `pip install akshare`）",
         f"- 标的数量: {len(tickers)}",
         "",
         "> 框架仅供研究；输出不构成投资建议。",

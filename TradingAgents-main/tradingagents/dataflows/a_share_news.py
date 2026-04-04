@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 
 from .stockstats_utils import yf_retry
 from .yfinance_news import _extract_article_data
+from .config import get_config
 
 
 def _normalize_ticker_code(ticker: str) -> str:
@@ -156,3 +157,46 @@ def get_a_share_company_social_digest_yfinance(
     curr_date = end_date
     header = f"## A股个股舆情与媒体报道摘要 — `{ticker}`（{name} / {code}）"
     return search_news_digest(queries, curr_date, 7, limit, header)
+
+
+def get_a_share_macro_news_combined(
+    curr_date: str,
+    look_back_days: int = 7,
+    limit: int = 12,
+) -> str:
+    """yfinance 宏观检索 + 可选 AkShare（央视/财新等）。"""
+    parts: list[str] = [get_a_share_macro_news_yfinance(curr_date, look_back_days, limit)]
+    cfg = get_config()
+    if cfg.get("a_share_use_akshare"):
+        try:
+            from .a_share_akshare import get_a_share_portal_macro_digest_akshare
+
+            parts.append(get_a_share_portal_macro_digest_akshare(curr_date))
+        except Exception as e:
+            parts.append(f"\n\n（中文门户宏观摘要拉取失败: {type(e).__name__}: {e}）")
+    return "\n\n---\n\n".join(parts)
+
+
+def get_a_share_company_social_combined(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    limit: int = 15,
+) -> str:
+    """yfinance 检索 + 可选 AkShare（东财个股新闻与情绪指标）。"""
+    parts: list[str] = [
+        get_a_share_company_social_digest_yfinance(ticker, start_date, end_date, limit)
+    ]
+    cfg = get_config()
+    if cfg.get("a_share_use_akshare"):
+        try:
+            from .a_share_akshare import get_a_share_portal_company_digest_akshare
+
+            parts.append(
+                get_a_share_portal_company_digest_akshare(
+                    ticker, start_date, end_date, news_limit=max(limit, 20)
+                )
+            )
+        except Exception as e:
+            parts.append(f"\n\n（中文门户个股摘要拉取失败: {type(e).__name__}: {e}）")
+    return "\n\n---\n\n".join(parts)

@@ -2,8 +2,8 @@ from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
 from tradingagents.dataflows.a_share_news import (
-    get_a_share_macro_news_yfinance,
-    get_a_share_company_social_digest_yfinance,
+    get_a_share_macro_news_combined,
+    get_a_share_company_social_combined,
 )
 
 
@@ -14,10 +14,9 @@ def get_a_share_macro_news(
     limit: Annotated[int, "Max articles"] = 12,
 ) -> str:
     """
-    A-share / China market macro and policy-oriented news digest (Chinese search queries via yfinance).
-    Use for CSRC, monetary policy, northbound flows, index/policy headlines relevant to A-shares.
+    A-share macro digest: yfinance Search plus optional AkShare (CCTV/Caixin Eastmoney-style) when a_share_use_akshare is enabled.
     """
-    return get_a_share_macro_news_yfinance(curr_date, look_back_days, limit)
+    return get_a_share_macro_news_combined(curr_date, look_back_days, limit)
 
 
 @tool
@@ -28,10 +27,9 @@ def get_a_share_company_sentiment(
     limit: Annotated[int, "Max items"] = 15,
 ) -> str:
     """
-    Company-level A-share discussion and media digest (Chinese queries: name, code, earnings, major portals).
-    Supplement to get_news; not real-time forum order flow, but topic and sentiment clues.
+    Company-level A-share sentiment: yfinance Search plus optional AkShare Eastmoney news and sentiment scores when enabled.
     """
-    return get_a_share_company_social_digest_yfinance(ticker, start_date, end_date, limit)
+    return get_a_share_company_social_combined(ticker, start_date, end_date, limit)
 
 
 @tool
