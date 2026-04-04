@@ -49,6 +49,13 @@ fortran/*.mod
 !requirements.txt
 !estim_params.txt
 !estim_shocks.txt
+!a_share_universe.txt
+
+# A 股批处理输出（可本地保留，不入库）
+a_share_reports/
+tradingagents_results/
+a_share_last_run.json
+a_share_cron.log
 
 # 结果文件
 steady_state_results*.pkl
