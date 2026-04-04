@@ -57,6 +57,9 @@ a_share_reports/
 tradingagents_results/
 a_share_last_run.json
 a_share_cron.log
+a_share_all_codes_cache.json
+a_share_full_market_progress.json
+a_share_full_market_results.jsonl
 
 # 结果文件
 steady_state_results*.pkl
