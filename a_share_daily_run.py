@@ -2,9 +2,21 @@
 """
 A 股日线批处理：调用 TradingAgents 多智能体图，对股票池逐一分析并写入报告。
 
-用法（需已配置 LLM API 密钥，见 TradingAgents-main/.env.example）：
+用法：
   cd /workspace && pip install -e ./TradingAgents-main
   pip install -r requirements_a_share.txt   # 交易日历 + 可选 akshare（中文财经源）
+
+本地 Ollama（推荐，无需 OpenAI Key）：
+  先在本机启动 ollama 并拉模型，例如: ollama pull qwen2.5:latest
+  export LLM_PROVIDER=ollama
+  export OLLAMA_MODEL=qwen2.5:latest   # 或分别设 A_SHARE_DEEP_LLM / A_SHARE_QUICK_LLM
+  # 可选: export OLLAMA_HOST=http://127.0.0.1:11434
+  python a_share_daily_run.py
+
+若未设置 LLM_PROVIDER 且未配置 OPENAI_API_KEY，脚本会探测 http://127.0.0.1:11434 ，可用则自动使用 Ollama。
+
+云端 API（需密钥，见 TradingAgents-main/.env.example）：
+  export LLM_PROVIDER=openai
   python a_share_daily_run.py
 
 建议在用户本机 crontab 用北京时间 9:30 触发（示例）：
@@ -27,6 +39,8 @@ import json
 import os
 import sys
 import warnings
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -49,6 +63,35 @@ REPORT_DIR = _REPO_ROOT / "a_share_reports"
 
 # A 股现货常规收盘时间（北京时间）；与 exchange_calendars 分钟级一致即可用于日线口径
 _A_SHARE_REGULAR_CLOSE = datetime(2000, 1, 1, 15, 0, tzinfo=CN_TZ).time()
+
+
+def _ollama_host_base() -> str:
+    return os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").strip().rstrip("/")
+
+
+def _ollama_reachable(timeout: float = 2.0) -> bool:
+    """检测本机 Ollama HTTP 是否可用（/api/tags）。"""
+    base = _ollama_host_base()
+    url = f"{base}/api/tags"
+    try:
+        req = Request(url, method="GET")
+        with urlopen(req, timeout=timeout) as resp:
+            return 200 <= getattr(resp, "status", 200) < 300
+    except (URLError, OSError, TimeoutError):
+        return False
+
+
+def _resolve_llm_provider() -> str:
+    explicit = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    if explicit:
+        return explicit
+    if os.environ.get("USE_OLLAMA", "").strip().lower() in ("1", "true", "yes"):
+        return "ollama"
+    if os.environ.get("OPENAI_API_KEY", "").strip():
+        return "openai"
+    if _ollama_reachable():
+        return "ollama"
+    return "openai"
 
 
 def _try_get_xshg_calendar():
@@ -132,10 +175,15 @@ def _build_config() -> dict:
     cfg["output_language"] = "Chinese"
     cfg["max_debate_rounds"] = int(os.getenv("A_SHARE_DEBATE_ROUNDS", "1"))
     cfg["max_risk_discuss_rounds"] = int(os.getenv("A_SHARE_RISK_ROUNDS", "1"))
-    cfg["deep_think_llm"] = os.getenv("A_SHARE_DEEP_LLM", cfg.get("deep_think_llm", "gpt-5.4"))
-    cfg["quick_think_llm"] = os.getenv("A_SHARE_QUICK_LLM", cfg.get("quick_think_llm", "gpt-5.4-mini"))
-    cfg["llm_provider"] = os.getenv("LLM_PROVIDER", cfg.get("llm_provider", "openai"))
-    if os.getenv("OPENAI_BASE_URL"):
+    cfg["llm_provider"] = _resolve_llm_provider()
+    if cfg["llm_provider"] == "ollama":
+        default_m = os.getenv("OLLAMA_MODEL", "qwen2.5:latest")
+        cfg["deep_think_llm"] = os.getenv("A_SHARE_DEEP_LLM", default_m)
+        cfg["quick_think_llm"] = os.getenv("A_SHARE_QUICK_LLM", default_m)
+    else:
+        cfg["deep_think_llm"] = os.getenv("A_SHARE_DEEP_LLM", cfg.get("deep_think_llm", "gpt-5.4"))
+        cfg["quick_think_llm"] = os.getenv("A_SHARE_QUICK_LLM", cfg.get("quick_think_llm", "gpt-5.4-mini"))
+    if os.getenv("OPENAI_BASE_URL") and cfg["llm_provider"] != "ollama":
         cfg["backend_url"] = os.environ["OPENAI_BASE_URL"]
     cfg["data_vendors"] = {
         "core_stock_apis": "yfinance",
@@ -193,6 +241,8 @@ def main() -> None:
         f"- 使用的日线交易日 trade_date: **{trade_date}** — {reason_zh}",
         f"- 启用分析师: {', '.join(analysts)}（A_SHARE_ENRICHED_NEWS=1 时会自动加入 social；可用 A_SHARE_ANALYSTS / A_SHARE_ENRICHED_NEWS 调整）",
         f"- 中文门户数据（AkShare / 东财·央视·财新等）: **{'开启' if cfg.get('a_share_use_akshare') else '关闭'}**（`A_SHARE_USE_AKSHARE`，需 `pip install akshare`）",
+        f"- LLM: **{cfg.get('llm_provider')}** / 模型: `{cfg.get('deep_think_llm')}` / `{cfg.get('quick_think_llm')}`"
+        + (f" @ `{_ollama_host_base()}`" if cfg.get("llm_provider") == "ollama" else ""),
         f"- 标的数量: {len(tickers)}",
         "",
         "> 框架仅供研究；输出不构成投资建议。",

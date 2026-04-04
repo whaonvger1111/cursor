@@ -24,11 +24,10 @@ _PASSTHROUGH_KWARGS = (
     "api_key", "callbacks", "http_client", "http_async_client",
 )
 
-# Provider base URLs and API key env vars
+# Provider base URLs and API key env vars (Ollama handled in get_llm — supports OLLAMA_HOST)
 _PROVIDER_CONFIG = {
     "xai": ("https://api.x.ai/v1", "XAI_API_KEY"),
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
-    "ollama": ("http://localhost:11434/v1", None),
 }
 
 
@@ -57,15 +56,24 @@ class OpenAIClient(BaseLLMClient):
         llm_kwargs = {"model": self.model}
 
         # Provider-specific base URL and auth
-        if self.provider in _PROVIDER_CONFIG:
+        if self.provider == "ollama":
+            # Prefer OLLAMA_OPENAI_BASE_URL (full OpenAI-compat base, e.g. http://host:11434/v1), then OLLAMA_HOST.
+            # Ignore unrelated config backend_url (e.g. api.openai.com) so local runs work with default config.
+            oa_base = os.environ.get("OLLAMA_OPENAI_BASE_URL", "").strip()
+            if oa_base:
+                bu = oa_base.rstrip("/")
+                llm_kwargs["base_url"] = bu if bu.endswith("/v1") else f"{bu}/v1"
+            else:
+                host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").strip().rstrip("/")
+                llm_kwargs["base_url"] = f"{host}/v1"
+            llm_kwargs["api_key"] = "ollama"
+        elif self.provider in _PROVIDER_CONFIG:
             base_url, api_key_env = _PROVIDER_CONFIG[self.provider]
             llm_kwargs["base_url"] = base_url
             if api_key_env:
                 api_key = os.environ.get(api_key_env)
                 if api_key:
                     llm_kwargs["api_key"] = api_key
-            else:
-                llm_kwargs["api_key"] = "ollama"
         elif self.base_url:
             llm_kwargs["base_url"] = self.base_url
 
