@@ -4,14 +4,21 @@ A 股日线批处理：调用 TradingAgents 多智能体图，对股票池逐一
 
 用法（需已配置 LLM API 密钥，见 TradingAgents-main/.env.example）：
   cd /workspace && pip install -e ./TradingAgents-main
+  pip install -r requirements_a_share.txt   # 交易日历（含长假），强烈推荐
   python a_share_daily_run.py
 
 建议在用户本机 crontab 用北京时间 9:30 触发（示例）：
   30 9 * * 1-5 TZ=Asia/Shanghai cd /workspace && /usr/bin/python3 a_share_daily_run.py >> /workspace/a_share_cron.log 2>&1
 
-说明：
-- 分析日 trade_date 取「上一交易日」的日期，与日线收盘价可得性一致；非投资建议。
-- 数据依赖 yfinance；A 股需带交易所后缀 .SS / .SZ / .BJ。
+交易日 trade_date 规则（北京时间）：
+- 若已安装 exchange_calendars：按上交所 XSHG 日历识别周末与内地休市；正常交易日 15:00 收盘前
+  使用「上一完整交易日」的日线（与未收盘的当日 K 线一致）；15:00 及之后使用「当日」。
+- 未安装日历时回退为仅跳过周末（长假仍可能偏差），报告与 JSON 中会标注。
+
+默认启用分析师：market, news, fundamentals（不含 social，减少对 A 股噪声）。
+环境变量 A_SHARE_ANALYSTS 可覆盖，例如：market,social,news,fundamentals
+
+非投资建议；数据依赖 yfinance；A 股代码需带 .SS / .SZ / .BJ。
 """
 
 from __future__ import annotations
@@ -19,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import warnings
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -39,6 +47,49 @@ CN_TZ = ZoneInfo("Asia/Shanghai")
 UNIVERSE_FILE = _REPO_ROOT / "a_share_universe.txt"
 REPORT_DIR = _REPO_ROOT / "a_share_reports"
 
+# A 股现货常规收盘时间（北京时间）；与 exchange_calendars 分钟级一致即可用于日线口径
+_A_SHARE_REGULAR_CLOSE = datetime(2000, 1, 1, 15, 0, tzinfo=CN_TZ).time()
+
+
+def _try_get_xshg_calendar():
+    try:
+        import exchange_calendars as xc
+
+        return xc.get_calendar("XSHG")
+    except ImportError:
+        return None
+
+
+def _resolve_trade_date(now_cn: datetime) -> tuple[date, str]:
+    """返回 (trade_date, 说明备注)。trade_date 为传给 TradingAgents 的 YYYY-MM-DD。"""
+    ref = now_cn.date()
+    cal = _try_get_xshg_calendar()
+
+    if cal is None:
+        warnings.warn(
+            "未安装 exchange_calendars，trade_date 仅跳过周末，长假可能不准确。"
+            "请执行: pip install -r requirements_a_share.txt",
+            stacklevel=2,
+        )
+        d = ref - timedelta(days=1)
+        while d.weekday() >= 5:
+            d -= timedelta(days=1)
+        return d, "fallback_weekend_only"
+
+    import pandas as pd
+
+    ref_ts = pd.Timestamp(ref)
+    if not cal.is_session(ref_ts):
+        sess = cal.date_to_session(ref_ts, direction="previous")
+        return sess.date(), "calendar_non_session_use_previous_completed"
+
+    # ref 是交易日：收盘前用上一交易日（当日 K 线未走完）；收盘后用当日
+    close_today = datetime.combine(ref, _A_SHARE_REGULAR_CLOSE, tzinfo=CN_TZ)
+    if now_cn < close_today:
+        prev = cal.previous_session(ref_ts)
+        return prev.date(), "calendar_before_close_use_previous_session"
+    return ref, "calendar_after_close_use_today_session"
+
 
 def _load_universe(path: Path) -> list[str]:
     if not path.exists():
@@ -54,12 +105,21 @@ def _load_universe(path: Path) -> list[str]:
     return out
 
 
-def _previous_trading_day(ref: datetime) -> date:
-    """上一自然日向前回退，跳过周末（不处理内地长假，与 yfinance 日线一致即可）。"""
-    d = ref.date() - timedelta(days=1)
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-    return d
+def _parse_analyst_list() -> list[str]:
+    raw = os.getenv(
+        "A_SHARE_ANALYSTS",
+        "market,news,fundamentals",
+    )
+    parts = [p.strip().lower() for p in raw.split(",") if p.strip()]
+    allowed = {"market", "social", "news", "fundamentals"}
+    for p in parts:
+        if p not in allowed:
+            raise ValueError(
+                f"A_SHARE_ANALYSTS 含未知分析师: {p}，允许: {sorted(allowed)}"
+            )
+    if not parts:
+        raise ValueError("A_SHARE_ANALYSTS 不能为空")
+    return parts
 
 
 def _build_config() -> dict:
@@ -91,24 +151,33 @@ def main() -> None:
     load_dotenv(_REPO_ROOT / ".env")
 
     now_cn = datetime.now(CN_TZ)
-    trade_date = _previous_trading_day(now_cn)
+    trade_date, trade_date_reason = _resolve_trade_date(now_cn)
     tickers = _load_universe(UNIVERSE_FILE)
+    analysts = _parse_analyst_list()
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORT_DIR / f"a_share_report_{trade_date.isoformat()}.md"
 
     cfg = _build_config()
     graph = TradingAgentsGraph(
-        selected_analysts=["market", "social", "news", "fundamentals"],
+        selected_analysts=analysts,
         debug=False,
         config=cfg,
     )
+
+    reason_zh = {
+        "fallback_weekend_only": "未装交易日历：仅跳过周末（长假可能不准）",
+        "calendar_non_session_use_previous_completed": "非交易日：取上一完整交易日",
+        "calendar_before_close_use_previous_session": "交易日下午收盘前：取上一完整交易日（当日 K 未收盘）",
+        "calendar_after_close_use_today_session": "交易日下午收盘后：取当日交易日",
+    }.get(trade_date_reason, trade_date_reason)
 
     header: list[str] = [
         "# A 股多智能体分析（TradingAgents）",
         "",
         f"- 运行时间（北京时间）: {now_cn.strftime('%Y-%m-%d %H:%M:%S %Z')}",
-        f"- 使用的日线交易日 trade_date: **{trade_date}**（上一完整交易日，日线口径）",
+        f"- 使用的日线交易日 trade_date: **{trade_date}** — {reason_zh}",
+        f"- 启用分析师: {', '.join(analysts)}（默认不含 social，可用 A_SHARE_ANALYSTS 修改）",
         f"- 标的数量: {len(tickers)}",
         "",
         "> 框架仅供研究；输出不构成投资建议。",
@@ -170,6 +239,8 @@ def main() -> None:
             {
                 "run_at_cn": now_cn.isoformat(),
                 "trade_date": trade_date.isoformat(),
+                "trade_date_reason": trade_date_reason,
+                "analysts": analysts,
                 "report": str(report_path),
                 "rows": summary_rows,
             },

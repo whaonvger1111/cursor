@@ -50,6 +50,7 @@ fortran/*.mod
 !estim_params.txt
 !estim_shocks.txt
 !a_share_universe.txt
+!requirements_a_share.txt
 
 # A 股批处理输出（可本地保留，不入库）
 a_share_reports/
