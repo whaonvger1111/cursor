@@ -8,7 +8,9 @@ from tradingagents.llm_clients.model_catalog import get_model_options
 
 console = Console()
 
-TICKER_INPUT_EXAMPLES = "Examples: SPY, CNC.TO, 7203.T, 0700.HK"
+TICKER_INPUT_EXAMPLES = (
+    "Examples: SPY, CNC.TO, 7203.T, 0700.HK, 600519.SS, 000001.SZ (China A-shares)"
+)
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),

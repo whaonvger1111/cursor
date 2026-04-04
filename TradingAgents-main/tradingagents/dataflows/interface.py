@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Any
 
 # Import from vendor-specific modules
 from .y_finance import (
@@ -23,6 +23,17 @@ from .alpha_vantage import (
     get_global_news as get_alpha_vantage_global_news,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
+from .a_share_akshare import (
+    get_stock_data as get_akshare_stock_data,
+    get_indicators as get_akshare_indicators,
+    get_fundamentals as get_akshare_fundamentals,
+    get_balance_sheet as get_akshare_balance_sheet,
+    get_cashflow as get_akshare_cashflow,
+    get_income_statement as get_akshare_income_statement,
+    get_news as get_akshare_news,
+    get_global_news as get_akshare_global_news,
+    get_insider_transactions as get_akshare_insider_transactions,
+)
 
 # Configuration and routing logic
 from .config import get_config
@@ -63,6 +74,7 @@ TOOLS_CATEGORIES = {
 VENDOR_LIST = [
     "yfinance",
     "alpha_vantage",
+    "akshare",
 ]
 
 # Mapping of methods to their vendor-specific implementations
@@ -71,41 +83,50 @@ VENDOR_METHODS = {
     "get_stock_data": {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
+        "akshare": get_akshare_stock_data,
     },
     # technical_indicators
     "get_indicators": {
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
+        "akshare": get_akshare_indicators,
     },
     # fundamental_data
     "get_fundamentals": {
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
+        "akshare": get_akshare_fundamentals,
     },
     "get_balance_sheet": {
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
+        "akshare": get_akshare_balance_sheet,
     },
     "get_cashflow": {
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
+        "akshare": get_akshare_cashflow,
     },
     "get_income_statement": {
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
+        "akshare": get_akshare_income_statement,
     },
     # news_data
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
         "yfinance": get_news_yfinance,
+        "akshare": get_akshare_news,
     },
     "get_global_news": {
         "yfinance": get_global_news_yfinance,
         "alpha_vantage": get_alpha_vantage_global_news,
+        "akshare": get_akshare_global_news,
     },
     "get_insider_transactions": {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
+        "akshare": get_akshare_insider_transactions,
     },
 }
 
@@ -131,17 +152,54 @@ def get_vendor(category: str, method: str = None) -> str:
     # Fall back to category-level configuration
     return config.get("data_vendors", {}).get(category, "default")
 
+
+def _expand_auto_vendor(method: str, args: tuple[Any, ...]) -> str:
+    """Resolve `auto` to a concrete vendor chain (A-share -> AkShare first)."""
+    from .a_share_symbols import is_a_share_symbol
+
+    if method == "get_global_news":
+        # China macro first, then US-style Yahoo search
+        return "akshare,yfinance,alpha_vantage"
+
+    symbol_methods = (
+        "get_stock_data",
+        "get_indicators",
+        "get_fundamentals",
+        "get_balance_sheet",
+        "get_cashflow",
+        "get_income_statement",
+        "get_news",
+        "get_insider_transactions",
+    )
+    if method in symbol_methods and args:
+        sym = args[0]
+        if isinstance(sym, str) and is_a_share_symbol(sym):
+            return "akshare,yfinance,alpha_vantage"
+    return "yfinance,alpha_vantage,akshare"
+
+
+def _normalize_vendor_string(vendor_config: str, method: str, args: tuple[Any, ...]) -> str:
+    parts = [p.strip() for p in vendor_config.split(",") if p.strip()]
+    out: list[str] = []
+    for p in parts:
+        if p == "auto":
+            out.append(_expand_auto_vendor(method, args))
+        else:
+            out.append(p)
+    return ",".join(out)
+
+
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
-    vendor_config = get_vendor(category, method)
-    primary_vendors = [v.strip() for v in vendor_config.split(',')]
+    vendor_config = _normalize_vendor_string(get_vendor(category, method), method, args)
 
     if method not in VENDOR_METHODS:
         raise ValueError(f"Method '{method}' not supported")
 
     # Build fallback chain: primary vendors first, then remaining available vendors
     all_available_vendors = list(VENDOR_METHODS[method].keys())
+    primary_vendors = [v.strip() for v in vendor_config.split(",") if v.strip()]
     fallback_vendors = primary_vendors.copy()
     for vendor in all_available_vendors:
         if vendor not in fallback_vendors:
@@ -157,6 +215,11 @@ def route_to_vendor(method: str, *args, **kwargs):
         try:
             return impl_func(*args, **kwargs)
         except AlphaVantageRateLimitError:
-            continue  # Only rate limits trigger fallback
+            continue  # Only rate limits trigger fallback for Alpha Vantage
+        except Exception:
+            # AkShare depends on third-party sites; try next vendor on any failure
+            if vendor == "akshare":
+                continue
+            raise
 
     raise RuntimeError(f"No available vendor for '{method}'")

@@ -51,34 +51,56 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     subsequent calls the cache is reused. Rows after curr_date are
     filtered out so backtests never see future prices.
     """
+    from .a_share_symbols import is_a_share_symbol
+
     config = get_config()
     curr_date_dt = pd.to_datetime(curr_date)
 
-    # Cache uses a fixed window (15y to today) so one file per symbol
+    # Cache uses a fixed window (5y to today) so one file per symbol
     today_date = pd.Timestamp.today()
     start_date = today_date - pd.DateOffset(years=5)
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = today_date.strftime("%Y-%m-%d")
 
     os.makedirs(config["data_cache_dir"], exist_ok=True)
-    data_file = os.path.join(
-        config["data_cache_dir"],
-        f"{symbol}-YFin-data-{start_str}-{end_str}.csv",
-    )
 
-    if os.path.exists(data_file):
-        data = pd.read_csv(data_file, on_bad_lines="skip")
+    if is_a_share_symbol(symbol):
+        from .a_share_akshare import download_akshare_ohlcv
+
+        data_file = os.path.join(
+            config["data_cache_dir"],
+            f"{symbol}-AK-data-{start_str}-{end_str}.csv",
+        )
+        if os.path.exists(data_file):
+            data = pd.read_csv(data_file, on_bad_lines="skip")
+        else:
+            data = download_akshare_ohlcv(symbol, start_str, end_str)
+            if data.empty:
+                raise ValueError(
+                    f"No AkShare OHLCV data for A-share {symbol} in {start_str}..{end_str}"
+                )
+            data.to_csv(data_file, index=False)
     else:
-        data = yf_retry(lambda: yf.download(
-            symbol,
-            start=start_str,
-            end=end_str,
-            multi_level_index=False,
-            progress=False,
-            auto_adjust=True,
-        ))
-        data = data.reset_index()
-        data.to_csv(data_file, index=False)
+        data_file = os.path.join(
+            config["data_cache_dir"],
+            f"{symbol}-YFin-data-{start_str}-{end_str}.csv",
+        )
+
+        if os.path.exists(data_file):
+            data = pd.read_csv(data_file, on_bad_lines="skip")
+        else:
+            data = yf_retry(
+                lambda: yf.download(
+                    symbol,
+                    start=start_str,
+                    end=end_str,
+                    multi_level_index=False,
+                    progress=False,
+                    auto_adjust=True,
+                )
+            )
+            data = data.reset_index()
+            data.to_csv(data_file, index=False)
 
     data = _clean_dataframe(data)
 
