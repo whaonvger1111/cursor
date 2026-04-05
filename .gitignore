@@ -73,6 +73,9 @@ cache/
 # 批量下载的 RePEc 复制包（体积大，不纳入版本库）
 red_ccodes_download/
 
+# TradingAgents A 股每日分析输出
+a_share_analysis_results/
+
 # 操作系统文件
 .DS_Store
 Thumbs.db
