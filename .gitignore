@@ -78,3 +78,8 @@ red_ccodes_download/
 Thumbs.db
 desktop.ini
 
+# TradingAgents 克隆：缓存、结果与本地密钥不入库
+TradingAgents-main/results/
+TradingAgents-main/dataflows/data_cache/
+TradingAgents-main/.env
+
