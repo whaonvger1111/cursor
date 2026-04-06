@@ -15,7 +15,9 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from a_share_trading_agent.data_sources import (
     baostock_session,
@@ -31,36 +33,20 @@ def _is_st_name(name: str) -> bool:
     return "ST" in n or "*ST" in name
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="A 股日线级辅助分析")
-    parser.add_argument(
-        "--top",
-        type=int,
-        default=150,
-        help="从实时行情中按成交额取前 N 只再筛选（默认 150）",
-    )
-    parser.add_argument(
-        "--pick",
-        type=int,
-        default=12,
-        help="最终输出推荐观察数量（默认 12）",
-    )
-    parser.add_argument(
-        "--pages",
-        type=int,
-        default=2,
-        help="拉取实时列表页数（每页 100，默认 2 页）",
-    )
-    args = parser.parse_args()
-
+def build_report_text(
+    *,
+    top: int,
+    pick: int,
+    pages: int,
+) -> str:
+    """生成完整报告正文（供打印或写入文件）。"""
     end = datetime.now().date()
     start = end - timedelta(days=400)
 
     rows: list = []
-    for p in range(1, args.pages + 1):
+    for p in range(1, pages + 1):
         rows.extend(fetch_eastmoney_spot_page(page=p, page_size=100, sort_field="f6"))
 
-    # 按成交额排序并去重
     seen: set[str] = set()
     uniq: list = []
     for r in sorted(rows, key=lambda x: (x.amt or 0), reverse=True):
@@ -68,7 +54,7 @@ def main() -> None:
             continue
         seen.add(r.code)
         uniq.append(r)
-        if len(uniq) >= args.top:
+        if len(uniq) >= top:
             break
 
     candidates = [r for r in uniq if not _is_st_name(r.name)]
@@ -95,43 +81,89 @@ def main() -> None:
             results.append((rank_key, spot, sig))
 
     results.sort(key=lambda x: x[0], reverse=True)
-    picked = results[: args.pick]
+    picked = results[:pick]
 
-    print("=" * 60)
-    print(f"A 股辅助观察简报  生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-    print()
-    print("【重要】本输出为规则化技术分析演示，非投资建议；入市有风险。")
-    print()
-    print("【交易时段】" + cn_trading_session_hints())
-    print()
+    lines: list[str] = []
+    lines.append("=" * 60)
+    lines.append(
+        f"A 股辅助观察简报  生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    lines.append("=" * 60)
+    lines.append("")
+    lines.append("【重要】本输出为规则化技术分析演示，非投资建议；入市有风险。")
+    lines.append("")
+    lines.append("【交易时段】" + cn_trading_session_hints())
+    lines.append("")
     if not picked:
-        print("未能生成候选（可能网络或数据源异常）。请稍后重试。")
-        return
+        lines.append("未能生成候选（可能网络或数据源异常）。请稍后重试。")
+        return "\n".join(lines) + "\n"
 
-    print(f"【候选说明】从成交额靠前的股票中，用日线 RSI(14)+MA5/MA20 做简单打分。")
-    print()
+    lines.append(
+        "【候选说明】从成交额靠前的股票中，用日线 RSI(14)+MA5/MA20 做简单打分。"
+    )
+    lines.append("")
     for i, (_, spot, sig) in enumerate(picked, 1):
         pct = spot.pct_chg
         pct_s = f"{pct:+.2f}%" if pct is not None else "-"
-        print(f"{i}. {spot.name} ({spot.code})  现价:{spot.last}  涨跌:{pct_s}")
-        print(
+        lines.append(f"{i}. {spot.name} ({spot.code})  现价:{spot.last}  涨跌:{pct_s}")
+        lines.append(
             f"   信号: {sig.action}  |  score={sig.score:.2f}  "
             f"RSI14={sig.rsi14:.1f}  MA5={sig.ma5:.2f}  MA20={sig.ma20:.2f}"
         )
-        print(f"   {sig.note}")
-        print(
+        lines.append(f"   {sig.note}")
+        lines.append(
             "   时间参考: 日线级信号以收盘或次日集合竞价/开盘为观察窗口；"
             "短线若需减仓，可在盘中冲高或跌破 MA5 时分批评估。"
         )
-        print()
+        lines.append("")
 
-    print("-" * 60)
-    print(
-        "【关于「每天九点半」】可在交易日本机 crontab 设置 "
-        "`30 9 * * 1-5 cd /path && python3 -m a_share_trading_agent.run_daily_analysis` "
-        "（时区需为 Asia/Shanghai）。"
+    lines.append("-" * 60)
+    lines.append(
+        "【定时运行】GitHub Actions：工作日 01:30 UTC（北京时间 09:30）；"
+        "本机可用 crontab：`30 9 * * 1-5`（时区 Asia/Shanghai）。"
     )
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="A 股日线级辅助分析")
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=150,
+        help="从实时行情中按成交额取前 N 只再筛选（默认 150）",
+    )
+    parser.add_argument(
+        "--pick",
+        type=int,
+        default=12,
+        help="最终输出推荐观察数量（默认 12）",
+    )
+    parser.add_argument(
+        "--pages",
+        type=int,
+        default=2,
+        help="拉取实时列表页数（每页 100，默认 2 页）",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="",
+        help="若指定，则写入 reports：{output-dir}/YYYY-MM-DD.txt 与 latest.txt",
+    )
+    args = parser.parse_args()
+
+    text = build_report_text(top=args.top, pick=args.pick, pages=args.pages)
+    sys.stdout.write(text)
+
+    if args.output_dir:
+        out_dir = Path(args.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        day = datetime.now().strftime("%Y-%m-%d")
+        day_path = out_dir / f"{day}.txt"
+        day_path.write_text(text, encoding="utf-8")
+        latest = out_dir / "latest.txt"
+        latest.write_text(text, encoding="utf-8")
 
 
 if __name__ == "__main__":

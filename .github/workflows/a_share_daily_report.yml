@@ -1,0 +1,39 @@
+# 工作日北京时间约 09:30 生成 A 股辅助观察简报（UTC+8 → 01:30 UTC）
+name: A-share daily report
+
+on:
+  schedule:
+    - cron: "30 1 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily analysis
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python3 -m a_share_trading_agent.run_daily_analysis \
+            --output-dir reports/a_share_daily
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-share-daily-${{ github.run_id }}
+          path: reports/a_share_daily/
+          retention-days: 14
