@@ -36,7 +36,7 @@ DISCLAIMER = (
 )
 
 
-def _retry_call(fn, retries: int = 4, base_sleep: float = 1.5):
+def _retry_call(fn, retries: int = 6, base_sleep: float = 2.0):
     last: Exception | None = None
     for attempt in range(retries):
         try:
@@ -73,7 +73,7 @@ def fetch_daily_hist(symbol: str, days: int = 120) -> pd.DataFrame:
             adjust="qfq",
         )
 
-    df = _retry_call(_)
+    df = _retry_call(_, retries=8, base_sleep=2.0)
     if df is None or df.empty:
         return pd.DataFrame()
     # 统一列名
@@ -234,7 +234,23 @@ def technical_signals_for_symbol(code: str, name: str) -> TechSignal | None:
     )
 
 
-def run_screen(top_n: int = 15) -> dict[str, Any]:
+_SPOT_ONLY_TECH = TechSignal(
+    code="",
+    name="",
+    ma5=None,
+    ma20=None,
+    rsi14=None,
+    buy_hint=(
+        "（快速模式未拉取日线）若需均线/RSI，请去掉 --spot-only 重试。"
+        " 盘中可参考：9:30–10:00 观察方向与量能，避免盲目追高。"
+    ),
+    sell_hint=(
+        "（快速模式）止盈/止损请自行设定规则；急涨时关注是否放量滞涨。"
+    ),
+)
+
+
+def run_screen(top_n: int = 15, *, spot_only: bool = False) -> dict[str, Any]:
     spot = fetch_spot_a_em()
     spot = filter_tradable_spot(spot)
     spot = cross_section_score(spot)
@@ -247,7 +263,18 @@ def run_screen(top_n: int = 15) -> dict[str, Any]:
     for _, row in spot.iterrows():
         code = str(row[code_col]).zfill(6)
         name = str(row[name_col])
-        ts = technical_signals_for_symbol(code, name)
+        if spot_only:
+            ts = TechSignal(
+                code=code,
+                name=name,
+                ma5=None,
+                ma20=None,
+                rsi14=None,
+                buy_hint=_SPOT_ONLY_TECH.buy_hint,
+                sell_hint=_SPOT_ONLY_TECH.sell_hint,
+            )
+        else:
+            ts = technical_signals_for_symbol(code, name)
         if ts is None:
             continue
         item = {
@@ -257,12 +284,14 @@ def run_screen(top_n: int = 15) -> dict[str, Any]:
             "technical": asdict(ts),
         }
         picks.append(item)
-        time.sleep(0.35)  # 略限流，降低接口压力
+        if not spot_only:
+            time.sleep(0.35)  # 略限流，降低接口压力
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "timezone_note": "本机时间；分析 A 股请使用北京时间理解交易时段。",
         "disclaimer": DISCLAIMER,
+        "mode": "spot_only" if spot_only else "full",
         "top_n": top_n,
         "picks": picks,
     }
@@ -272,24 +301,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="A 股筛选与简易技术分析")
     parser.add_argument("--top", type=int, default=12, help="推荐关注股票数量（默认 12）")
     parser.add_argument(
+        "--spot-only",
+        action="store_true",
+        help="仅根据全市场快照打分，不逐股拉日线（更快、更省接口，适合网络不稳时）",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="仅输出 JSON，便于定时任务落盘",
     )
     args = parser.parse_args()
 
-    result = run_screen(top_n=args.top)
+    result = run_screen(top_n=args.top, spot_only=args.spot_only)
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return
 
     print(DISCLAIMER)
-    print(f"生成时间: {result['generated_at']}")
+    print(f"生成时间: {result['generated_at']}  模式: {result.get('mode', 'full')}")
     print()
     for i, p in enumerate(result["picks"], 1):
         t = p["technical"]
         print(f"【{i}】 {t['code']} {t['name']}")
-        print(f"    MA5={t['ma5']}, MA20={t['ma20']}, RSI(14)={t['rsi14']}")
+        if result.get("mode") != "spot_only":
+            print(f"    MA5={t['ma5']}, MA20={t['ma20']}, RSI(14)={t['rsi14']}")
         print(f"    买入参考: {t['buy_hint']}")
         print(f"    卖出/风控: {t['sell_hint']}")
         print()
