@@ -54,6 +54,34 @@ def fetch_a_share_spot() -> pd.DataFrame:
     return ak.stock_zh_a_spot_em()
 
 
+def fetch_individual_brief_em(symbol: str, retries: int = 2) -> dict[str, str]:
+    """东财个股信息：名称、最新价等。"""
+    import akshare as ak
+
+    out: dict[str, str] = {}
+    for attempt in range(retries):
+        try:
+            df = ak.stock_individual_info_em(symbol=symbol)
+            if df is None or df.empty:
+                return out
+            m = df.set_index("item")["value"].to_dict()
+            for key in ("股票简称", "证券简称", "名称"):
+                if key in m and m[key] is not None:
+                    out["名称"] = str(m[key]).strip()
+                    break
+            if "最新" in m and m["最新"] is not None:
+                out["最新价"] = str(m["最新"]).strip()
+            return out
+        except Exception:
+            time.sleep(0.8 * (attempt + 1))
+    return out
+
+
+def fetch_stock_name(symbol: str, retries: int = 2) -> str:
+    b = fetch_individual_brief_em(symbol, retries=retries)
+    return b.get("名称", "")
+
+
 def filter_liquid_main_board(df: pd.DataFrame) -> pd.DataFrame:
     """剔除 ST、停牌、无成交价；保留沪深主板/创业板/科创板常见代码段。"""
     if df.empty:
