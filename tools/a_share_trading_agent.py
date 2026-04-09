@@ -180,7 +180,8 @@ def build_views(entries: list[dict[str, Any]]) -> list[StockView]:
     return views
 
 
-def print_report(views: list[StockView], top_k: int, as_json: bool) -> None:
+def build_report_payload(views: list[StockView], top_k: int) -> dict[str, Any]:
+    """生成与 --json 输出一致的字典，供邮件与自动化复用。"""
     now = datetime.now(TZ_SH)
     header = {
         "generated_at_cst": now.isoformat(),
@@ -206,40 +207,70 @@ def print_report(views: list[StockView], top_k: int, as_json: bool) -> None:
         "说明": "具体买卖点需结合你本人的策略、仓位与风险承受能力；本脚本不提供精确时点预测。",
     }
 
+    return {
+        **header,
+        "timing_hints_cst": timing,
+        "candidates": [asdict(v) for v in picks],
+    }
+
+
+def report_text_from_payload(payload: dict[str, Any], top_k: int) -> str:
+    """将 build_report_payload 的结果格式化为纯文本。"""
+    lines: list[str] = []
+    now_s = payload.get("generated_at_cst", "")
+    timing = payload.get("timing_hints_cst") or {}
+    header_disclaimer = payload.get("disclaimer", "")
+    session_cst = payload.get("session_cst", "")
+
+    lines.append("=" * 60)
+    lines.append("A 股日度辅助分析（非投资建议）")
+    lines.append(f"生成时间（北京时间）: {now_s}")
+    lines.append("-" * 60)
+    lines.append(header_disclaimer)
+    lines.append("-" * 60)
+    lines.append(f"交易时段提示: {session_cst}")
+    lines.append("")
+    for title, block in timing.items():
+        if title == "说明":
+            lines.append(f"{title}: {block}")
+            continue
+        lines.append(f"【{title}】")
+        for line in block:
+            lines.append(f"  - {line}")
+        lines.append("")
+    lines.append("-" * 60)
+    lines.append(f"推荐关注（按启发式分数排序，前 {top_k} 名）:")
+    for i, c in enumerate(payload.get("candidates") or [], 1):
+        lines.append(
+            f"{i}. {c.get('symbol')} {c.get('name')} | 现价:{c.get('price')} | 涨幅:{c.get('pct_chg')}% | "
+            f"换手:{c.get('turnover_rate')}% | 成交额:{c.get('amount')} | PE(TTM):{c.get('pe_ttm')} | 行情时间:{c.get('quote_time')}"
+        )
+        lines.append(f"   分数:{c.get('score')} | 备注:{c.get('note')}")
+    lines.append("=" * 60)
+    return "\n".join(lines)
+
+
+def print_report(views: list[StockView], top_k: int, as_json: bool) -> None:
+    payload = build_report_payload(views, top_k)
     if as_json:
-        payload = {
-            **header,
-            "timing_hints_cst": timing,
-            "candidates": [asdict(v) for v in picks],
-        }
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
+    print(report_text_from_payload(payload, top_k))
 
-    print("=" * 60)
-    print("A 股日度辅助分析（非投资建议）")
-    print(f"生成时间（北京时间）: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-    print("-" * 60)
-    print(header["disclaimer"])
-    print("-" * 60)
-    print("交易时段提示:", header["session_cst"])
-    print()
-    for title, lines in timing.items():
-        if title == "说明":
-            print(f"{title}: {lines}")
-            continue
-        print(f"【{title}】")
-        for line in lines:
-            print(f"  - {line}")
-        print()
-    print("-" * 60)
-    print(f"推荐关注（按启发式分数排序，前 {top_k} 名）:")
-    for i, v in enumerate(picks, 1):
-        print(
-            f"{i}. {v.symbol} {v.name} | 现价:{v.price} | 涨幅:{v.pct_chg}% | "
-            f"换手:{v.turnover_rate}% | 成交额:{v.amount} | PE(TTM):{v.pe_ttm} | 行情时间:{v.quote_time}"
-        )
-        print(f"   分数:{v.score:.2f} | 备注:{v.note}")
-    print("=" * 60)
+
+def run_analysis(
+    hot_top: int,
+    top_k: int,
+    symbols: str,
+) -> dict[str, Any]:
+    """拉取数据并返回报告字典（与 --json 一致）。"""
+    if symbols.strip():
+        syms = [s.strip() for s in symbols.split(",") if s.strip()]
+        entries = [{"raw_code": s, "name": "", "rank": 0} for s in syms]
+    else:
+        entries = fetch_hot_list(hot_top)
+    views = build_views(entries)
+    return build_report_payload(views, top_k)
 
 
 def main() -> int:
@@ -255,14 +286,11 @@ def main() -> int:
     p.add_argument("--json", action="store_true", help="输出 JSON 便于自动化")
     args = p.parse_args()
 
-    if args.symbols.strip():
-        syms = [s.strip() for s in args.symbols.split(",") if s.strip()]
-        entries = [{"raw_code": s, "name": "", "rank": 0} for s in syms]
+    payload = run_analysis(args.hot_top, args.top_k, args.symbols)
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        entries = fetch_hot_list(args.hot_top)
-
-    views = build_views(entries)
-    print_report(views, args.top_k, args.json)
+        print(report_text_from_payload(payload, args.top_k))
     return 0
 
 

@@ -1,4 +1,1 @@
-"""
-工具函数模块
-"""
-
+# Tools package (e.g. python -m tools.a_share_daily_email)

@@ -70,6 +70,9 @@ cache/
 *.tmp
 *.temp
 
+# A 股日度邮件归档（含 JSON，勿提交）
+tools/reports/a_share/
+
 # 批量下载的 RePEc 复制包（体积大，不纳入版本库）
 red_ccodes_download/
 
