@@ -1,0 +1,12 @@
+# 复制本文件内容到 crontab -e，并把 /ABS/PATH/TO/cursor 换成你的仓库绝对路径。
+# 北京时间：每个工作日 9:40 执行（略晚于开盘，数据更稳）。
+#
+# crontab 环境变量较少，建议用脚本内的 A_SHARE_ENV_FILE 或下面单行 export。
+
+40 9 * * 1-5 TZ=Asia/Shanghai /ABS/PATH/TO/cursor/scripts/run_a_share_daily.sh
+
+# 若需发 QQ 邮件，先在 ~/.config/a_share_env 写入（chmod 600）：
+#   export A_SHARE_SMTP_USER='你的QQ@qq.com'
+#   export A_SHARE_SMTP_PASSWORD='SMTP授权码'
+#   export A_SHARE_MAIL_TO='36269216@qq.com'
+# 并在 run_a_share_daily.sh 同目录逻辑下已支持 source 该文件（默认路径见脚本内 A_SHARE_ENV_FILE）。

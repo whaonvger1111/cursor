@@ -1,0 +1,43 @@
+# 可选：在 GitHub 上按工作日 UTC 01:40 触发（约等于北京时间 09:40）。
+# 需在仓库 Settings → Secrets 配置 A_SHARE_SMTP_USER、A_SHARE_SMTP_PASSWORD（及可选 A_SHARE_MAIL_TO）。
+# 注意：部分邮箱会拦截云服务器 IP，若收不到信请改用本机 crontab。
+
+name: A-share daily report
+
+on:
+  schedule:
+    - cron: "40 1 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily analysis
+        env:
+          A_SHARE_SMTP_USER: ${{ secrets.A_SHARE_SMTP_USER }}
+          A_SHARE_SMTP_PASSWORD: ${{ secrets.A_SHARE_SMTP_PASSWORD }}
+          A_SHARE_MAIL_TO: ${{ secrets.A_SHARE_MAIL_TO }}
+        run: |
+          if [ -n "$A_SHARE_SMTP_USER" ] && [ -n "$A_SHARE_SMTP_PASSWORD" ]; then
+            python3 tools/a_share_daily_email.py
+          else
+            python3 tools/a_share_daily_email.py --dry-run
+          fi
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-share-report-${{ github.run_id }}
+          path: tools/reports/a_share/*.json
+          if-no-files-found: ignore
