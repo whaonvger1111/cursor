@@ -1,9 +1,21 @@
 # Windows 任务计划程序 — 每日运行 A 股辅助分析
 
-## 1. 环境
+## 0. 一键安装（推荐）
+
+在资源管理器中进入仓库的 `scripts` 文件夹，**双击** `install_a_share_windows.bat`（或在 cmd 里执行 `scripts\install_a_share_windows.bat`）。
+
+脚本会自动：创建 `venv`、安装 `requirements.txt`、验证 `akshare`。
+
+- 若还要**自动注册每天 09:40 的任务**：在同一目录打开 cmd，执行  
+  `install_a_share_windows.bat schedule`  
+  （失败时可右键「以管理员身份运行」再试，或按下文手动添加任务。）
+
+仍需本机已安装 **Python 3**（安装时勾选 Add to PATH）。脚本无法替你下载 Python。
+
+## 1. 环境（手动）
 
 - 安装 **Python 3**，在仓库目录执行：`pip install -r requirements.txt`  
-- （可选）`python -m venv venv`，之后任务里脚本会优先使用 `venv\Scripts\python.exe`
+- （可选）`python -m venv venv`，之后 `run_a_share_daily.cmd` 会优先使用 `venv\Scripts\python.exe`
 
 ## 2. 发邮件（可选）
 
