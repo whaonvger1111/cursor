@@ -1,4 +1,4 @@
-# Weekdays 09:30 Beijing time (01:30 UTC): fetch quotes and print rule-based analysis.
+# 工作日北京时间 09:30（01:30 UTC，无夏令时）：拉取行情并输出 A 股规则化中文摘要。
 name: Daily stock analysis
 
 on:
@@ -22,8 +22,8 @@ jobs:
 
       - name: Run daily analysis
         env:
-          # Optional: set repository Variables STOCK_* to override (empty uses code defaults).
+          # 可在仓库 Variables 中设置 STOCK_* 覆盖默认（A 股代码示例：600519.SS）
           STOCK_SYMBOLS: ${{ vars.STOCK_SYMBOLS }}
           STOCK_LOOKBACK_DAYS: ${{ vars.STOCK_LOOKBACK_DAYS }}
           STOCK_BIG_MOVE_PCT: ${{ vars.STOCK_BIG_MOVE_PCT }}
-        run: python -m trading_agent.run_daily_analysis
+        run: python3 -m trading_agent.run_daily_analysis
