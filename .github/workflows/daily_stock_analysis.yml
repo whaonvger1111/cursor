@@ -1,0 +1,29 @@
+# Weekdays 09:30 Beijing time (01:30 UTC): fetch quotes and print rule-based analysis.
+name: Daily stock analysis
+
+on:
+  schedule:
+    - cron: "30 1 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily analysis
+        env:
+          # Optional: set repository Variables STOCK_* to override (empty uses code defaults).
+          STOCK_SYMBOLS: ${{ vars.STOCK_SYMBOLS }}
+          STOCK_LOOKBACK_DAYS: ${{ vars.STOCK_LOOKBACK_DAYS }}
+          STOCK_BIG_MOVE_PCT: ${{ vars.STOCK_BIG_MOVE_PCT }}
+        run: python -m trading_agent.run_daily_analysis
