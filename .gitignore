@@ -49,6 +49,7 @@ fortran/*.mod
 !requirements.txt
 !estim_params.txt
 !estim_shocks.txt
+!a_share_monitor/watchlist.txt
 
 # 结果文件
 steady_state_results*.pkl
