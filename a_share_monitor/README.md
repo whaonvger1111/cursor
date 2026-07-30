@@ -34,7 +34,44 @@ python3 -m a_share_monitor.monitor watch --interval 300
 python3 -m a_share_monitor.monitor scan --output signals.json
 ```
 
-## 自选股配置
+## 扫描范围
+
+默认自选股只有 5 只，所以之前看起来像「小市场」。现在支持按板块扫描**整个 A 股市场**：
+
+| `--market` 参数 | 覆盖范围 | 约股票数量 |
+|-----------------|----------|------------|
+| `watchlist`（默认） | `watchlist.txt` 自选股 | 自定义 |
+| `star` | **科创板**（688 开头） | ~600+ |
+| `chinext` | **创业板**（300 开头） | ~900+ |
+| `main` | 沪深主板（60/00 开头） | ~3400+ |
+| `all` | 全 A 股（主板+科创板+创业板） | ~4900+ |
+| `sh` / `sz` | 上海 / 深圳全市场 | 按交易所 |
+
+> 说明：你说的「科幻版」通常对应 **科创板（Sci-Tech STAR Market）**；「中国版」对应 **A 股全市场**。港股、美股目前不在覆盖范围内。
+
+### 扫描整个科创板
+
+```bash
+python3 -m a_share_monitor.monitor scan --market star --top 20
+```
+
+### 扫描整个创业板
+
+```bash
+python3 -m a_share_monitor.monitor scan --market chinext --top 20
+```
+
+### 扫描全 A 股（耗时较长，约 1 小时）
+
+```bash
+python3 -m a_share_monitor.monitor scan --market all --top 30
+```
+
+### 测试用（只扫前 100 只）
+
+```bash
+python3 -m a_share_monitor.monitor scan --market star --limit 100 --top 10
+```
 
 编辑 `a_share_monitor/watchlist.txt`，每行一个股票代码，支持：
 

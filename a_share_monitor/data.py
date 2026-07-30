@@ -10,6 +10,8 @@ import baostock as bs
 import pandas as pd
 import requests
 
+from a_share_monitor.session import baostock_session
+
 TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q={codes}"
 
 
@@ -48,43 +50,48 @@ def to_tencent_symbol(bs_code: str) -> str:
     return f"{market}{digits}"
 
 
-def fetch_history(bs_code: str, days: int = 180) -> pd.DataFrame:
-    """Load adjusted daily OHLCV bars."""
+HISTORY_FIELDS = "date,open,high,low,close,volume,amount,pctChg"
+
+
+def _history_window(days: int) -> tuple[str, str]:
     end = datetime.now().strftime("%Y-%m-%d")
     start = (datetime.now() - timedelta(days=days + 30)).strftime("%Y-%m-%d")
-    fields = "date,open,high,low,close,volume,amount,pctChg"
+    return start, end
 
-    lg = bs.login()
-    if lg.error_code != "0":
-        raise RuntimeError(f"baostock login failed: {lg.error_msg}")
 
-    try:
-        rs = bs.query_history_k_data_plus(
-            bs_code,
-            fields,
-            start_date=start,
-            end_date=end,
-            frequency="d",
-            adjustflag="2",
-        )
-        if rs.error_code != "0":
-            raise RuntimeError(f"baostock query failed: {rs.error_msg}")
+def _parse_history_df(df: pd.DataFrame, days: int) -> pd.DataFrame:
+    if df.empty:
+        raise RuntimeError("No history returned")
+    for col in ("open", "high", "low", "close", "volume", "amount", "pctChg"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"])
+    return df.dropna(subset=["close"]).sort_values("date").tail(days).reset_index(drop=True)
 
-        rows = []
-        while rs.next():
-            rows.append(rs.get_row_data())
 
-        df = pd.DataFrame(rows, columns=rs.fields)
-        if df.empty:
-            raise RuntimeError(f"No history returned for {bs_code}")
+def fetch_history(bs_code: str, days: int = 180) -> pd.DataFrame:
+    """Load adjusted daily OHLCV bars."""
+    with baostock_session():
+        return fetch_history_logged_in(bs_code, days=days)
 
-        for col in ("open", "high", "low", "close", "volume", "amount", "pctChg"):
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.dropna(subset=["close"]).sort_values("date").tail(days)
-        return df.reset_index(drop=True)
-    finally:
-        bs.logout()
+
+def fetch_history_logged_in(bs_code: str, days: int = 180) -> pd.DataFrame:
+    """Load history assuming baostock is already logged in."""
+    start, end = _history_window(days)
+    rs = bs.query_history_k_data_plus(
+        bs_code,
+        HISTORY_FIELDS,
+        start_date=start,
+        end_date=end,
+        frequency="d",
+        adjustflag="2",
+    )
+    if rs.error_code != "0":
+        raise RuntimeError(f"baostock query failed: {rs.error_msg}")
+
+    rows = []
+    while rs.next():
+        rows.append(rs.get_row_data())
+    return _parse_history_df(pd.DataFrame(rows, columns=rs.fields), days)
 
 
 def fetch_quotes(bs_codes: list[str]) -> dict[str, Quote]:
@@ -92,12 +99,20 @@ def fetch_quotes(bs_codes: list[str]) -> dict[str, Quote]:
     if not bs_codes:
         return {}
 
-    symbols = ",".join(to_tencent_symbol(code) for code in bs_codes)
-    resp = requests.get(TENCENT_QUOTE_URL.format(codes=symbols), timeout=15)
-    resp.raise_for_status()
-
     quotes: dict[str, Quote] = {}
-    for line in resp.text.strip().split(";"):
+    chunk_size = 80
+    for i in range(0, len(bs_codes), chunk_size):
+        chunk = bs_codes[i : i + chunk_size]
+        symbols = ",".join(to_tencent_symbol(code) for code in chunk)
+        resp = requests.get(TENCENT_QUOTE_URL.format(codes=symbols), timeout=20)
+        resp.raise_for_status()
+        quotes.update(_parse_tencent_quotes(resp.text))
+    return quotes
+
+
+def _parse_tencent_quotes(text: str) -> dict[str, Quote]:
+    quotes: dict[str, Quote] = {}
+    for line in text.strip().split(";"):
         line = line.strip()
         if not line or "~" not in line:
             continue
