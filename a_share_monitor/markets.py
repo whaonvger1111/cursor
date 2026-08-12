@@ -31,6 +31,28 @@ def _digits(code: str) -> str:
     return code.split(".", 1)[1]
 
 
+def _load_listing_snapshot(trade_date: str | None) -> pd.DataFrame:
+    """Walk back up to 10 calendar days to find a non-empty listing snapshot."""
+    start = (
+        datetime.strptime(trade_date, "%Y-%m-%d")
+        if trade_date
+        else datetime.now()
+    )
+    last_error = "unknown error"
+    for offset in range(10):
+        day = (start - timedelta(days=offset)).strftime("%Y-%m-%d")
+        rs = bs.query_all_stock(day=day)
+        if rs.error_code != "0":
+            last_error = rs.error_msg
+            continue
+        rows = []
+        while rs.next():
+            rows.append(rs.get_row_data())
+        if rows:
+            return pd.DataFrame(rows, columns=rs.fields)
+    raise RuntimeError(f"baostock query_all_stock failed: {last_error}")
+
+
 def classify_board(code: str) -> str | None:
     """Return board label or None if not a tradable A-share stock."""
     market, num = code.split(".")
@@ -54,22 +76,8 @@ def load_universe(market: str, trade_date: str | None = None) -> list[StockInfo]
     if market not in MARKET_CHOICES:
         raise ValueError(f"Unknown market '{market}'. Choose from: {', '.join(MARKET_CHOICES)}")
 
-    if trade_date is None:
-        trade_date = datetime.now().strftime("%Y-%m-%d")
-
     with baostock_session():
-        rs = bs.query_all_stock(day=trade_date)
-        if rs.error_code != "0":
-            trade_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-            rs = bs.query_all_stock(day=trade_date)
-            if rs.error_code != "0":
-                raise RuntimeError(f"baostock query_all_stock failed: {rs.error_msg}")
-
-        rows = []
-        while rs.next():
-            rows.append(rs.get_row_data())
-
-        df = pd.DataFrame(rows, columns=rs.fields)
+        df = _load_listing_snapshot(trade_date)
 
     stocks: list[StockInfo] = []
     for _, row in df.iterrows():
