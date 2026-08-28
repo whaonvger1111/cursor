@@ -44,11 +44,11 @@ Tape snapshot **2026-08-28 14:28–14:29 SH**, Tencent. `%` = last vs prev close
 
 ### 002111 威海广泰 — **CANDIDATE**
 
-- **ONE new fact:** After the 8/27 close the company filed *关于签订重大合同的公告*: sale of airport GSE (tow tractors, buses, GPUs, container loaders) to India’s Aghport Aviation Services Limited for **USD 17.0424m ≈ RMB 1.15bn**. Prepayment received; contract effective; three batches, cash before each shipment. Company calls it its **largest Asia airport-equipment order**.
+- **ONE new fact:** After the 8/27 close the company filed *关于签订重大合同的公告*: sale of airport GSE (tow tractors, apron buses, ground power units, container loaders) to India’s Aghport Aviation Services Limited (Adani Group subsidiary) for **USD 17.0424m ≈ RMB 1.15bn**. Prepayment received; contract effective; three batches, cash before each shipment. Company calls it its **largest Asia airport-equipment order**.
 - **Source:** Eastmoney/CNINFO reprint [威海广泰:关于签订重大合同的公告](https://pdf.dfcfw.com/pdf/H2_AN202608271828537975_1.pdf) (`AN202608271828537975`, notice date 2026-08-28; wire 17:35 SH on 8/27 via [上海证券报](https://stock.10jqka.com.cn/20260827/c679354785.shtml)). Confirmed in [每日经济新闻](https://www.nbd.com.cn/articles/2026-08-27/4561256.html).
 - **Today’s tape:** **+4.04%** (9.79 / prev 9.41). Open 9.53, high 9.94, low 9.51. Holding mid-upper; not limit-up (10% cap ≈ 10.35); morning high not given back; not a 6% knife.
 - **Verdict: CANDIDATE.** New dated contract with a RMB amount, already in force (prepay), tape constructive and not a chase, story is airport GSE — not Fed/Warsh/Nvidia overnight. Public Guba commentary quoted by 每经 is caution (“小心”), not 纯追板 / 明天板.
-- **Why only a candidate, not a “must”:** 1.15亿元 is modest vs ~RMB 50bn mkt cap and H1 revenue 16.97亿元 (~7% of H1). India counterparty / FX risk is in the filing. H1 itself printed 8/26 and is **not** the catalyst.
+- **Why only a candidate, not a “must”:** 1.15亿元 is modest vs ~RMB 5.0bn mkt cap and H1 revenue 16.97亿元 (~7% of H1). USD/FX and cross-border fulfillment risk is in the filing. H1 itself printed 8/26 and is **not** the catalyst. Re-checked tape at 14:30 SH: still +4.04%, 1.6pp off the high, not hugging the low.
 
 ### 301111 粤万年青 — **SKIP**
 
