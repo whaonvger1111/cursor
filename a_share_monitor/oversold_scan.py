@@ -23,10 +23,11 @@ import requests
 
 from a_share_monitor.markets import align_label, board_label, classify_board
 
-ASOF_DEFAULT = "2026-11-10"
-WINDOW_DATE = "2026-11-11"
-WINDOW_LABEL = "2026-11-11 周三盘前"
-NEAR_BOARD_HEIGHT_REF = 7
+ASOF_DEFAULT = "2026-11-11"
+WINDOW_DATE = "2026-11-12"
+WINDOW_LABEL = "2026-11-12 周四盘前"
+SCAN_STAMP = "20261112"
+NEAR_BOARD_HEIGHT_REF = 4
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 CLIST_HOSTS = [
     "https://88.push2.eastmoney.com",
@@ -73,6 +74,15 @@ CLEARED = {
     "601166": "兴业银行",
 }
 WATCH_ONLY = {"002736": "国信证券"}
+FALSE_STABLE = {"002415": "海康威视"}
+# 油运已观察，不占新观察席（逐票，非整组踢袖）
+OIL_WATCHED = {
+    "601872": "招商轮船",
+    "600026": "中远海能",
+    "601975": "招商南油",
+}
+# 油运低位须单独评估：下跌≠抄底，无公司订单/新锚不进短名单前列
+OIL_LOW_REVIEW = {"000520": "凤凰航运"}
 NAMED_NOT_FORCE = {
     "600567",
     "600546",
@@ -84,59 +94,74 @@ NAMED_NOT_FORCE = {
     "301282",
     "603707",
 }
-# 主对照：昨晚细扫超跌八票（同一 price_asof=11/10；晚筛 K 线只对约 847 只候选）
-EVENING_EIGHT = [
-    "600362",  # 江西铜业
-    "301219",  # 腾远钴业
-    "002546",  # 新联电子
-    "601678",  # 滨化股份
-    "300981",  # 中红医疗
-    "000301",  # 东方盛虹
+# 主对照：昨晚晚筛超跌十票（同一 price_asof=11/11 收盘；禁止抄名单）
+EVENING_TEN = [
     "600938",  # 中国海油
-    "601699",  # 潞安环能
+    "002772",  # 众兴菌业
+    "301345",  # 涛涛车业
+    "300483",  # 首华燃气
+    "600362",  # 江西铜业
+    "603808",  # 歌力思
+    "603055",  # 台华新材
+    "688015",  # 交控科技
+    "301219",  # 腾远钴业
+    "300970",  # 华绿生物
 ]
-EVENING_EIGHT_LABELS = {
-    "600362": "江西铜业",
-    "301219": "腾远钴业（创业可对齐）",
-    "002546": "新联电子",
-    "601678": "滨化股份",
-    "300981": "中红医疗（创业可对齐）",
-    "000301": "东方盛虹",
+EVENING_TEN_LABELS = {
     "600938": "中国海油（油气生产不是油运忌追袖，油气链偏弱只观察）",
-    "601699": "潞安环能（与神华同属煤炭链、忌叠力；库档仍丙、不自动升乙）",
+    "002772": "众兴菌业",
+    "301345": "涛涛车业（创业可对齐）",
+    "300483": "首华燃气（创业可对齐）",
+    "600362": "江西铜业（工业金属不整组剔除）",
+    "603808": "歌力思（晚筛记 MA20=-5.75%，本窗若仅①③须如实写）",
+    "603055": "台华新材",
+    "688015": "交控科技（科创不对齐）",
+    "301219": "腾远钴业（创业可对齐；晚筛记 MA20=-4.57%）",
+    "300970": "华绿生物（创业可对齐；晚筛新入）",
 }
-# 次对照：周二盘前十票（asof=11/09，已过时仅旁注）
-TUESDAY_TEN = [
+# 次对照：11/11 盘前十票（asof=11/10，已过时仅旁注）
+SECONDARY_TEN = [
     "002772",
-    "600362",
     "603808",
+    "600938",
     "603055",
-    "001230",
+    "600362",
     "688015",
     "301219",
     "301345",
-    "688257",
-    "301308",
+    "300483",
+    "688308",
 ]
-TUESDAY_TEN_LABELS = {
+SECONDARY_TEN_LABELS = {
     "002772": "众兴菌业",
-    "600362": "江西铜业",
     "603808": "歌力思",
+    "600938": "中国海油",
     "603055": "台华新材",
-    "001230": "劲旅环境",
+    "600362": "江西铜业",
     "688015": "交控科技（科创不对齐）",
     "301219": "腾远钴业",
     "301345": "涛涛车业",
-    "688257": "新锐股份（科创不对齐）",
-    "301308": "江波龙",
+    "300483": "首华燃气",
+    "688308": "欧科亿（晚筛已因 11/11 过高换出）",
 }
 HOT_SLEEVE_WATCH_NAMES = ("万辰集团", "联讯仪器")
+NAMED_OPT_CHASE = {
+    "002463": "沪电股份",
+    "002916": "深南电路",
+    "300502": "新易盛",
+    "300394": "天孚通信",
+    "601138": "工业富联",
+}
 EXTRA_NOTES = {
-    "601699": "与已持神华同属煤炭链、忌叠力；晚筛再命中但库档仍丙、不自动升乙，勿写成新晋乙",
+    "601699": "与已持神华同属煤炭链、忌叠力；煤炭不是电力，不因叠力整组抹掉；库档仍丙、不自动升乙，勿写成新晋乙",
+    "601898": "与已持神华同属煤炭链、忌叠力；煤炭不是电力，不用发电禁令抹掉；只作超跌观察，不写成再开电力",
     "600938": "油气生产不是油运忌追袖，油气链偏弱只观察",
-    "000429": "昨夜披露现金收购广珠段25%+粤肇25%，只跟踪不加仓，不占新观察",
-    "603806": "席6｜已入｜只记观察不卖｜勿再满开主推",
+    "000429": "收购包只跟踪不加仓，不占新观察",
+    "603806": "11/11 收 12.73，低于观察 12.88、高于失效 12.61，只观察；11:32 酌卖 600 仍待用户，勿再满开主推",
+    "300926": "纸面仍持；实盘已清 0，两本分开写；09:25 卖 700 建议仍待用户，本扫不是卖单",
     "603707": "仅对照，禁止写成买尺候选",
+    "000520": "油运低位须单独评估：11/11 收 2.81 / -5.07%，距涨停约 16%；下跌≠抄底；无公司订单/UKMTO 新锚不进短名单前列",
+    "688308": "晚筛已因 11/11 收 54.04、+8.28%、5日 +10.7% 标过高忌追；独立重算过 A 也不得无解释塞回前列",
 }
 
 OIL_BK = "BK1482"
@@ -299,12 +324,99 @@ def clist_page(pn: int, pz: int = 100, fs: str = CLIST_FS, fields: str = CLIST_F
     raise RuntimeError(f"clist page {pn} failed: {last_err}")
 
 
-def fetch_clist_all(cache_path: Path) -> list[dict[str, Any]]:
-    if cache_path.exists():
-        rows = json.loads(cache_path.read_text(encoding="utf-8"))
-        if len(rows) > 4000:
-            log(f"[cache] clist {len(rows)} from {cache_path}")
-            return rows
+def _sina_node_page(page: int, num: int = 80, node: str = "hs_a") -> list[dict[str, Any]]:
+    url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData"
+    params = {"page": page, "num": num, "sort": "symbol", "asc": 1, "node": node}
+    last_err: Exception | str = "unknown"
+    sess = _session()
+    for i in range(5):
+        try:
+            r = sess.get(
+                url,
+                params=params,
+                timeout=20,
+                headers={"Referer": "https://finance.sina.com.cn", "User-Agent": UA},
+            )
+            if r.status_code == 200 and r.text.lstrip().startswith("["):
+                data = json.loads(r.text)
+                if isinstance(data, list):
+                    return data
+                last_err = f"non-list json {type(data)}"
+            else:
+                last_err = f"http {r.status_code} {r.text[:120]}"
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+        time.sleep(0.6 * (i + 1) + random.random() * 0.3)
+    raise RuntimeError(f"sina node page {page} failed: {last_err}")
+
+
+def sina_to_em(item: dict[str, Any]) -> dict[str, Any]:
+    code = str(item.get("code") or "")
+    close = _fnum(item.get("trade"))
+    if close is not None and close <= 0:
+        close = None
+    pe = _fnum(item.get("per"))
+    pb = _fnum(item.get("pb"))
+    return {
+        "f12": code,
+        "f14": str(item.get("name") or ""),
+        "f2": close,
+        "f3": _fnum(item.get("changepercent")),
+        "f9": pe,
+        "f115": pe,
+        "f23": pb,
+        "f8": _fnum(item.get("turnoverratio")),
+        "f6": _fnum(item.get("amount")),
+        "f17": _fnum(item.get("open")),
+        "f18": _fnum(item.get("settlement")),
+        "f100": "",
+        "_src": "sina",
+    }
+
+
+def fetch_clist_sina(cache_path: Path) -> list[dict[str, Any]]:
+    """新浪 hs_a 全市场回退：东财 clist 502 时仍独立扫沪深主板+创业+科创。"""
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    page = 1
+    empty_streak = 0
+    while page <= 120:
+        try:
+            data = _sina_node_page(page, num=80, node="hs_a")
+        except Exception as exc:  # noqa: BLE001
+            empty_streak += 1
+            log(f"[clist-sina] page {page} fail {exc} streak={empty_streak}")
+            if empty_streak >= 4:
+                break
+            time.sleep(1.5 * empty_streak)
+            continue
+        if not data:
+            break
+        added = 0
+        for item in data:
+            rec = sina_to_em(item)
+            code = rec["f12"]
+            if classify_board(code) not in {"main", "chinext", "star"}:
+                continue
+            if code in seen:
+                continue
+            seen.add(code)
+            rows.append(rec)
+            added += 1
+        log(f"[clist-sina] page {page} raw={len(data)} added={added} cumulative={len(rows)}")
+        empty_streak = 0
+        if len(data) < 80:
+            break
+        page += 1
+        time.sleep(0.12)
+    by_code = {str(x["f12"]): x for x in rows}
+    rows = list(by_code.values())
+    cache_path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    log(f"[clist-sina] saved {len(rows)} -> {cache_path}")
+    return rows
+
+
+def fetch_clist_eastmoney(cache_path: Path, max_stall: int = 3) -> list[dict[str, Any]]:
     partial_path = cache_path.with_suffix(".partial.json")
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -318,7 +430,6 @@ def fetch_clist_all(cache_path: Path) -> list[dict[str, Any]]:
             rows = []
             seen = set()
     pn = max(1, (len(rows) // 100) + 1)
-    total = None
     stall = 0
     while True:
         try:
@@ -326,7 +437,7 @@ def fetch_clist_all(cache_path: Path) -> list[dict[str, Any]]:
         except Exception as exc:  # noqa: BLE001
             stall += 1
             log(f"[clist] page {pn} hard-fail {exc} stall={stall}")
-            if stall >= 6:
+            if stall >= max_stall:
                 raise
             time.sleep(2.0 * stall)
             continue
@@ -344,6 +455,7 @@ def fetch_clist_all(cache_path: Path) -> list[dict[str, Any]]:
             if code in seen:
                 continue
             seen.add(code)
+            item["_src"] = "eastmoney"
             rows.append(item)
             added += 1
         log(f"[clist] page {pn} got {len(diff)} added={added} cumulative={len(rows)} total={total}")
@@ -353,16 +465,33 @@ def fetch_clist_all(cache_path: Path) -> list[dict[str, Any]]:
             break
         pn += 1
         time.sleep(0.08)
-    # de-dup
-    by_code: dict[str, dict[str, Any]] = {}
-    for item in rows:
-        by_code[str(item["f12"])] = item
+    by_code = {str(item["f12"]): item for item in rows}
     rows = list(by_code.values())
     cache_path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
     if partial_path.exists():
         partial_path.unlink()
     log(f"[clist] saved {len(rows)} -> {cache_path}")
     return rows
+
+
+def fetch_clist_all(cache_path: Path) -> list[dict[str, Any]]:
+    if cache_path.exists():
+        rows = json.loads(cache_path.read_text(encoding="utf-8"))
+        if len(rows) > 4000:
+            log(f"[cache] clist {len(rows)} from {cache_path}")
+            return rows
+    partial_path = cache_path.with_suffix(".partial.json")
+    if partial_path.exists():
+        log("[clist] eastmoney partial exists but incomplete; skip further EM clist hammering, fallback sina hs_a")
+        return fetch_clist_sina(cache_path)
+    try:
+        rows = fetch_clist_eastmoney(cache_path, max_stall=2)
+        if len(rows) > 4000:
+            return rows
+        log(f"[clist] eastmoney incomplete n={len(rows)}; fallback sina")
+    except Exception as exc:  # noqa: BLE001
+        log(f"[clist] eastmoney failed ({exc}); fallback sina hs_a")
+    return fetch_clist_sina(cache_path)
 
 
 def fetch_bk_codes(bk: str) -> set[str]:
@@ -384,6 +513,20 @@ def fetch_bk_codes(bk: str) -> set[str]:
         pn += 1
     log(f"[bk] {bk} n={len(codes)}")
     return codes
+
+
+def oil_sleeve_codes(fetched: set[str], rows: list[dict[str, Any]]) -> set[str]:
+    """油运袖：优先东财 BK1482；失败则用已点名+简称，禁止把失败当成整组清零。"""
+    out = set(fetched)
+    out |= set(OIL_WATCHED)
+    out |= set(OIL_LOW_REVIEW)
+    if len(fetched) >= 10:
+        return out
+    for rec in rows:
+        name = rec.get("name") or rec.get("f14") or ""
+        if any(k in name for k in ("油运", "油轮", "油品运输")):
+            out.add(str(rec.get("code") or rec.get("f12") or ""))
+    return {c for c in out if c}
 
 
 def fetch_zt_pool(date_yyyymmdd: str) -> list[dict[str, Any]]:
@@ -427,6 +570,38 @@ def trading_days_back(asof: str, n: int = 8) -> list[str]:
     return out
 
 
+def fetch_kline_tencent(code: str) -> list[dict[str, float | str]]:
+    """腾讯不复权日K（param 末位 n）。东财 kline 失败时回退。"""
+    sym = tencent_symbol(code)
+    url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+    payload = http_json(url, {"param": f"{sym},day,,,90,n"}, tries=3, timeout=15)
+    node = ((payload.get("data") or {}).get(sym) or {})
+    bars = node.get("day") or node.get("nday") or []
+    rows: list[dict[str, float | str]] = []
+    prev = None
+    for line in bars:
+        if not isinstance(line, (list, tuple)) or len(line) < 5:
+            continue
+        close = float(line[2])
+        open_ = float(line[1])
+        vol = float(line[5] if len(line) > 5 else 0)
+        pct = ((close / prev - 1.0) * 100.0) if prev else 0.0
+        rows.append(
+            {
+                "date": str(line[0])[:10],
+                "open": open_,
+                "close": close,
+                "high": float(line[3]),
+                "low": float(line[4]),
+                "vol": vol,
+                "amt": vol * close * 100.0,
+                "pct": pct,
+            }
+        )
+        prev = close
+    return [r for r in rows if str(r["date"]) <= ASOF_DEFAULT]
+
+
 def fetch_kline(code: str) -> list[dict[str, float | str]]:
     params = {
         "secid": secid_of(code),
@@ -441,7 +616,7 @@ def fetch_kline(code: str) -> list[dict[str, float | str]]:
     last_err: Exception | str = "unknown"
     hosts = list(KLINE_HOSTS)
     random.shuffle(hosts)
-    for i, host in enumerate(hosts * 2):
+    for i, host in enumerate(hosts[:2]):
         try:
             payload = http_json(f"{host}/api/qt/stock/kline/get", params, tries=1, timeout=15)
             data = payload.get("data") or {}
@@ -463,12 +638,20 @@ def fetch_kline(code: str) -> list[dict[str, float | str]]:
                         "pct": float(p[8] or 0),
                     }
                 )
-            # keep bars up to asof
             rows = [r for r in rows if str(r["date"]) <= ASOF_DEFAULT]
-            return rows
+            if rows:
+                return rows
+            last_err = "empty klines"
         except Exception as exc:  # noqa: BLE001
             last_err = exc
-            time.sleep(0.15 * (i + 1))
+            time.sleep(0.12 * (i + 1))
+    try:
+        rows = fetch_kline_tencent(code)
+        if rows:
+            return rows
+        last_err = "tencent empty"
+    except Exception as exc:  # noqa: BLE001
+        last_err = exc
     raise RuntimeError(f"kline {code} failed: {last_err}")
 
 
@@ -584,6 +767,30 @@ def detect_a_hits(m: dict[str, Any]) -> list[str]:
 def is_limit_up(pct: float, code: str, name: str) -> bool:
     lim = limit_pct(code, name)
     return pct >= lim - 0.15
+
+
+def near_limit_asof(pct: float, code: str, name: str) -> bool:
+    """距涨停约 2 个百分点以内：主板 ≥8%，创业/科创 ≥18%。逐票，非整组。"""
+    lim = limit_pct(code, name)
+    return pct >= lim - 2.0
+
+
+def dist_to_limit_pct(close: float | None, prev_close: float | None, code: str, name: str) -> float | None:
+    if close is None or prev_close is None or close <= 0 or prev_close <= 0:
+        return None
+    limit_px = prev_close * (1.0 + limit_pct(code, name) / 100.0)
+    return (limit_px / close - 1.0) * 100.0
+
+
+def too_high(m: dict[str, Any]) -> bool:
+    """已相对高、忌追：5 日急弹 ≥+10%，或收盘已远离近低。"""
+    r5 = m.get("ret_5d")
+    pctile = m.get("pctile_60d")
+    if r5 is not None and r5 >= 0.10:
+        return True
+    if pctile is not None and pctile >= 70:
+        return True
+    return False
 
 
 def kline_limit_flags(code: str, name: str, rows: list[dict[str, Any]], lookback: int = 5) -> dict[str, Any]:
@@ -718,6 +925,11 @@ def is_bank(industry: str, name: str) -> bool:
     return "银行" in (industry or "") or name.endswith("银行") or "银行" in name
 
 
+def is_broker(industry: str, name: str) -> bool:
+    blob = (industry or "") + (name or "")
+    return any(k in blob for k in ("证券", "券商"))
+
+
 def is_pv(industry: str, name: str) -> bool:
     blob = (industry or "") + name
     return any(k in blob for k in PV_KEYS)
@@ -725,7 +937,13 @@ def is_pv(industry: str, name: str) -> bool:
 
 def pick_shortlist(cands: list[dict[str, Any]], n_min: int = 5, n_max: int = 10) -> list[dict[str, Any]]:
     """满2优先，分板/行业配额，硬约束：电力/已持/已清不进主推，银行最多1。"""
-    pool = [r for r in cands if len(r["a_hits"]) >= 2 and r.get("value_ok")]
+    pool = [
+        r
+        for r in cands
+        if len(r["a_hits"]) >= 2
+        and r.get("value_ok")
+        and ("①" in r["a_hits"] or "②" in r["a_hits"])
+    ]
     pool.sort(key=lambda r: (-len(r["a_hits"]), -r["score"], r.get("pctile_60d") or 99))
     picked: list[dict[str, Any]] = []
     used_ind: set[str] = set()
@@ -737,6 +955,8 @@ def pick_shortlist(cands: list[dict[str, Any]], n_min: int = 5, n_max: int = 10)
         code = row["code"]
         if code in HELD or code in CLEARED or code in WATCH_ONLY:
             continue
+        if code in OIL_WATCHED or code in OIL_LOW_REVIEW or code in FALSE_STABLE:
+            continue
         if code == "603707":
             continue  # 仅对照，禁止写成买尺候选
         if is_delist(row.get("name") or "") or is_st(row.get("name") or ""):
@@ -746,6 +966,8 @@ def pick_shortlist(cands: list[dict[str, Any]], n_min: int = 5, n_max: int = 10)
         if row.get("c_reasons"):
             continue
         if row.get("is_power"):
+            continue
+        if row.get("is_broker"):
             continue
         board = row["board"]
         if board_n[board] >= board_cap.get(board, 2):
@@ -781,6 +1003,10 @@ def pick_shortlist(cands: list[dict[str, Any]], n_min: int = 5, n_max: int = 10)
                 continue
             if row["code"] in HELD or row["code"] in CLEARED or row.get("is_power") or row.get("c_reasons"):
                 continue
+            if row["code"] in OIL_WATCHED or row["code"] in OIL_LOW_REVIEW or row["code"] in FALSE_STABLE:
+                continue
+            if row.get("is_broker"):
+                continue
             board = row["board"]
             if board_n[board] >= board_cap.get(board, 2):
                 continue
@@ -789,6 +1015,45 @@ def pick_shortlist(cands: list[dict[str, Any]], n_min: int = 5, n_max: int = 10)
             picked.append(row)
             board_n[board] += 1
     return picked
+
+
+def fetch_tencent_fundamentals(codes: list[str]) -> dict[str, dict[str, Any]]:
+    """腾讯批量：昨收、TTM PE(f39)、静态PE(f53)、PB(f46)。用于覆盖新浪静态市盈率。"""
+    out: dict[str, dict[str, Any]] = {}
+    sess = _session()
+    chunk = 60
+    for i in range(0, len(codes), chunk):
+        part = codes[i : i + chunk]
+        ts = ",".join(tencent_symbol(c) for c in part)
+        try:
+            r = sess.get(f"https://qt.gtimg.cn/q={ts}", timeout=20)
+            r.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            log(f"[tencent-fund] chunk {i} fail {exc}")
+            continue
+        for line in r.text.strip().split(";"):
+            if "~" not in line:
+                continue
+            payload = line.split("=", 1)[1].strip('"')
+            p = payload.split("~")
+            if len(p) < 47:
+                continue
+            code = p[2]
+            pe_ttm = _fnum(p[39]) if len(p) > 39 else None
+            pe_lyr = _fnum(p[53]) if len(p) > 53 else None
+            out[code] = {
+                "name": p[1],
+                "last": _fnum(p[3]),
+                "prev": _fnum(p[4]),
+                "open": _fnum(p[5]),
+                "pe_ttm": pe_ttm,
+                "pe_lyr": pe_lyr,
+                "pb": _fnum(p[46]),
+                "time": p[30] if len(p) > 30 else "",
+            }
+        time.sleep(0.05)
+    log(f"[tencent-fund] n={len(out)}/{len(codes)}")
+    return out
 
 
 def cross_quotes(codes: list[str]) -> dict[str, dict[str, Any]]:
@@ -865,10 +1130,43 @@ def reason_line(row: dict[str, Any]) -> str:
     pb = row.get("pb")
     pe_s = f"{pe:.1f}" if pe is not None else "NA"
     pb_s = f"{pb:.2f}" if pb is not None else "NA"
+    pctile = row.get("pctile_60d")
+    pctile_s = f"{pctile:.0f}%" if pctile is not None else "NA"
     return (
         f"满A{n}；20d {fmt_pct(row.get('ret_20d'))} / vsMA20 {fmt_pct(row.get('dev_ma20'))} / "
-        f"60d分位 {row.get('pctile_60d'):.0f}%；行业{row.get('industry') or 'NA'}；PE={pe_s}/PB={pb_s}"
+        f"60d分位 {pctile_s}；行业{row.get('industry') or 'NA'}；PE={pe_s}/PB={pb_s}"
     )
+
+
+def chase_fact(row: dict[str, Any]) -> str:
+    close = row.get("close")
+    chg = row.get("chg_pct")
+    dist = row.get("dist_to_limit")
+    gap = row.get("gap_asof")
+    close_s = f"{close:.2f}" if isinstance(close, (int, float)) else "NA"
+    chg_s = f"{chg:+.2f}%" if isinstance(chg, (int, float)) else "NA"
+    dist_s = f"{dist:.2f}%" if isinstance(dist, (int, float)) else "NA"
+    gap_n = (gap or 0) * 100
+    gap_flag = "是" if (gap or 0) > 0.01 else "否"
+    return (
+        f"11/11收{close_s}/{chg_s}；距涨停约{dist_s}；"
+        f"11/11高开>1%={gap_flag}（开盘相对前收{gap_n:+.2f}%，仅解释不是今开）"
+    )
+
+
+def quotes_agree(q: dict[str, Any], close: float | None) -> str:
+    """核 11/11 收盘：优先新浪/腾讯昨收。盘中现价不得当作 asof。"""
+    sina = q.get("sina_prev")
+    tenc = q.get("tencent_prev")
+    if sina is None:
+        sina = q.get("sina_close")
+    if tenc is None:
+        tenc = q.get("tencent_close")
+    if close is None or sina is None or tenc is None:
+        return "缺失"
+    if abs(sina - close) <= 0.011 and abs(tenc - close) <= 0.011:
+        return "11/11收盘三源一致（昨收交叉；盘中现价≠asof）"
+    return "11/11收盘不一致"
 
 
 def build_reports(
@@ -880,38 +1178,39 @@ def build_reports(
     fetch_time: str,
 ) -> tuple[Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    md_path = out_dir / "oversold-scan-20261111.md"
-    js_path = out_dir / "oversold-scan-20261111.json"
+    md_path = out_dir / f"oversold-scan-{SCAN_STAMP}.md"
+    js_path = out_dir / f"oversold-scan-{SCAN_STAMP}.json"
 
-    evening_map = {r["code"]: r for r in rows if r["code"] in EVENING_EIGHT}
+    evening_map = {r["code"]: r for r in rows if r["code"] in EVENING_TEN}
     keep, drop, new = [], [], []
     short_codes = [r["code"] for r in shortlist]
-    for code in EVENING_EIGHT:
+    for code in EVENING_TEN:
         if code in short_codes:
             keep.append(code)
         else:
             rec = evening_map.get(code) or {}
             why = rec.get("drop_why") or ",".join(rec.get("c_reasons") or []) or "独立重算后未进分板/行业配额前10"
-            drop.append(f"`{code} {rec.get('name') or EVENING_EIGHT_LABELS.get(code, '')}`（{why}）")
+            drop.append(f"`{code} {rec.get('name') or EVENING_TEN_LABELS.get(code, '')}`（{why}）")
     for rec in shortlist:
-        if rec["code"] not in EVENING_EIGHT:
+        if rec["code"] not in EVENING_TEN:
             new.append(f"`{rec['code']} {rec['name']}`")
 
     board_short = Counter(r["board"] for r in shortlist)
     evening_bits = "｜".join(
-        f"`{c} {EVENING_EIGHT_LABELS[c]}`" for c in EVENING_EIGHT
+        f"`{c} {EVENING_TEN_LABELS[c]}`" for c in EVENING_TEN
     )
-    tue_bits = "｜".join(f"`{c} {TUESDAY_TEN_LABELS[c]}`" for c in TUESDAY_TEN)
+    sec_bits = "｜".join(f"`{c} {SECONDARY_TEN_LABELS[c]}`" for c in SECONDARY_TEN)
     keep_disp = "、".join(
-        f"`{c} {evening_map.get(c, {}).get('name') or EVENING_EIGHT_LABELS.get(c, '')}`" for c in keep
+        f"`{c} {evening_map.get(c, {}).get('name') or EVENING_TEN_LABELS.get(c, '')}`" for c in keep
     )
     lines: list[str] = []
     lines.append(f"# 早盘全A价值超跌硬扫 · {WINDOW_DATE}")
     lines.append("")
     lines.append(
         f"> **窗口** {WINDOW_LABEL}（Asia/Shanghai）｜**price_asof** {ASOF_DEFAULT} 收盘"
-        f"（今日尚未开盘/竞价）｜抓取 {fetch_time}｜价源：东财 clist+不复权日K；"
-        "短名单核价 新浪 `hq.sinajs.cn` + 腾讯 `qt.gtimg.cn`｜教育模拟｜"
+        f"（窗口按未开盘口径；日K asof 停在 11/11）｜抓取开始 {fetch_time}｜"
+        "价源：东财不复权日K（clist 主域 502 后全A名单回退新浪 hs_a）；"
+        "短名单 11/11 收盘交叉新浪昨收 + 腾讯昨收（盘中现价只旁注，不当 asof）｜教育模拟｜"
         "**扫描 ≠ 买卖灯 ≠ 下单 ≠ 改灯**"
     )
     lines.append("")
@@ -925,19 +1224,21 @@ def build_reports(
         "- **B软**：PE>0；破净/低PE优先；畸高PE/PB降权；非脉冲阴跌；非ST。"
     )
     lines.append(
-        "- **C排除**：涨停/连板/近板（对照高度 "
-        f"{NEAR_BOARD_HEIGHT_REF}）、忌追袖·油运（BK1482，续且强化；UKMTO 201-26 ATTACK；"
-        "hormuz Restricted；油相对夜窗无新≥3%大跌，微反弹≠抄底油运）、"
-        "光模块（代码+简称兜底，不整组踢 BK1136）、无量僵尸、停牌、ST、电力不进短名单、"
+        "- **C排除必须逐票可核验**，禁止用「油运忌追 / 光模块忌追」整组清零。"
+        f"涨停/连板/近板（11/11 官方涨停池旁证：85 涨停 / 0 跌停 / 最高连板 {NEAR_BOARD_HEIGHT_REF}＝大东方、日出东方）、"
+        "已相对高（5日急弹≥+10% 或 60日分位≥70%）忌追、无量僵尸、停牌、ST、电力不进短名单、"
         "已持不占新观察、已清不加回主推前列。"
-        f"**不用「今日高开>1%」作C排除**（{WINDOW_DATE} 开盘尚未发生；"
-        f"{ASOF_DEFAULT} 当日高开仅作相对晚筛解释）。"
+        "油运 sleeve_hot 仍 yes，但低位票须单独评估；光模块只踢涨停/近板/大涨那几只，未近板且过A不因主题删除。"
+        f"**不用「今日高开>1%」作C排除**（C 按未开盘口径；{ASOF_DEFAULT} 当日高开仅作相对晚筛解释，"
+        "11/12 开盘/盘中现价不当 asof、不写入 C）。"
+        "停牌须有公开证据；原因不明标 UNKNOWN，不编造停牌。"
     )
-    lines.append("- 创业板资格已开通 → **可对齐**。科创板入短名单必须标 **观察·不对齐本账户开仓**。银行最多 1 只且仅对照。")
+    lines.append("- 创业板资格已开通 → **可对齐**。科创板入短名单必须标 **观察·不对齐本账户开仓**。银行最多 1 只且仅对照，不把第二只银行塞成强制席。")
     lines.append(
         f"- 默认建议进 **乙**（`601699 潞安环能` 若入短名单仍旁注库档丙、不自动升乙）。"
         f"必须独立用 {ASOF_DEFAULT} 收盘对沪深全A重算，禁止抄晚筛名单。"
-        "铜价 Official 仍 09 Nov（10/11 未挂），不因此整组剔除工业金属。"
+        "LME Official 铜仍 10 Nov（11/12 未挂），不因此整组剔除工业金属。"
+        "纸面规则 v3.9.2.70 SHA8 a5803743；决策闸 v0.19；v3.9.2.69 禁主题整组否决与逐票可证伪忌追仍有效。本扫不对齐改规则文件。"
     )
     lines.append("")
     lines.append("## 覆盖 / 踢出")
@@ -945,14 +1246,17 @@ def build_reports(
     lines.append(stats["coverage_line"])
     lines.append(f"- 踢出计数：{stats['kick_counts']}")
     lines.append(
-        f"- 忌追袖：油运BK={OIL_BK} n={stats['oil_n']}；光模块用代码+简称兜底；"
-        f"电力BK并集 n={stats['power_n']}（煤炭/油不是电力，不因神华叠力而开电力）。"
+        f"- 油运BK={OIL_BK} n={stats['oil_n']}（sleeve_hot=yes，**不整组踢出**；已观察不占新席："
+        "`601872 招商轮船`/`600026 中远海能`/`601975 招商南油`；低位须单独评估 `000520 凤凰航运`）。"
+        "光模块用代码+简称点名近板/涨停票，不整组踢 BK1136。"
+        f"电力BK并集 n={stats['power_n']}（煤炭/油不是电力，不因神华叠力而开电力，也不用电力禁令抹掉煤炭票）。"
         f"{ASOF_DEFAULT} 涨停池 n={stats['zt_asof_n']}，近{stats['near_days']}个交易日涨停去重 n={stats['near_n']}，"
         f"连板高度对照任务书={NEAR_BOARD_HEIGHT_REF}，本窗涨停池 max_lbc={stats['max_lbc']}。"
     )
     lines.append(
-        f"- 本窗明确：**{WINDOW_DATE} 今开未知**，故未把「今日高开>1%」写入 C。"
+        f"- 本窗 C 按未开盘口径：**不用「今日高开>1%」作排除**，也不把未知/已发生的 11/12 开盘写成 11/11 缺口。"
         f"若把 {ASOF_DEFAULT} 当日高开>1% 当 C，将多踢 {stats['gap_asof_n']} 只（仅解释，不作为本窗排除）。"
+        "11/11 官方涨停池旁证：85 涨停 / 0 跌停 / 最高连板 4（大东方、日出东方）。"
     )
     lines.append("")
     lines.append("## 方法盲点")
@@ -960,12 +1264,16 @@ def build_reports(
     for b in stats["blindspots"]:
         lines.append(f"- {b}")
     lines.append(
-        "- 现持不占新观察主推：`601318 中国平安`；`000429 粤高速A`"
-        "（昨夜披露现金收购广珠段 25%+粤肇 25%，只跟踪不加仓）；"
-        "`601088 中国神华`（忌叠力·禁再开电力）；`300926 博俊科技`；"
-        "`603806 福斯特`（席6｜已入｜只记观察不卖｜勿再满开主推）。"
+        "- 现持不占新观察主推（纸面仍冻在 11/11 11:30 午盘：现金 53209.93 / 权益 102213.93 / 仓约 47.94% / 席5空；"
+        "下列收盘仅旁证，不改账）："
+        "`601318 中国平安` 200 收 53.41；"
+        "`000429 粤高速A` 700 收 13.62（收购包只跟踪不加仓，不占新观察）；"
+        "`601088 中国神华` 200 收 49.00（忌叠力·禁再开电力）；"
+        "`300926 博俊科技` 700 纸面仍持、收 15.98（实盘已清 0，两本分开写；09:25 卖700 建议仍待用户，本扫不是卖单）；"
+        "`603806 福斯特` 600 收 12.73（低于观察 12.88、高于失效 12.61，只观察；11:32 酌卖600 仍待用户，勿再满开主推）。"
         "已清不加回：`300059 东方财富`；`000333 美的集团`；`601006 大秦铁路`；`601166 兴业银行`。"
-        "旁观不占价值席：`002736 国信证券`。席5空。总仓约48%旁证，强制窗关。"
+        "旁观不占价值席：`002736 国信证券`；`002415 海康威视` 伪稳、不升进攻。券商不进席5/6。"
+        "本扫不改买卖灯。"
     )
     lines.append("")
     lines.append("## 超跌短名单（建议并乙｜5–10）")
@@ -1008,11 +1316,11 @@ def build_reports(
                 )
             lines.append(f"- {title}：" + "；".join(bits))
         lines.append("")
-    lines.append("## 相对昨晚晚筛八票（同一 price_asof=11/10，独立全A重算）")
+    lines.append("## 相对昨晚晚筛十票（同一 price_asof=11/11 收盘，独立全A重算）")
     lines.append("")
     lines.append(
-        "晚筛 K 线只对约 847 只候选，不是全A逐只K。本窗官方早盘全A刷新，禁止抄名单。"
-        f"晚筛八票：{evening_bits}"
+        "晚筛对照来源 agent `bc-4fefb39d`。本窗对沪深全A独立重算，禁止抄昨晚短名单。"
+        f"晚筛十票：{evening_bits}"
     )
     lines.append("")
     lines.append("- 保留：" + (keep_disp if keep else "无"))
@@ -1021,13 +1329,21 @@ def build_reports(
     lines.append("- 去留解释：" + (stats.get("vs_explain") or "见各票独立重算字段。"))
     if stats.get("hot_sleeve_note"):
         lines.append("- 热袖已剔除对照：" + stats["hot_sleeve_note"])
+    if stats.get("oil_review"):
+        lines.append("- 油运逐票（不整组删除）：" + stats["oil_review"])
+    if stats.get("opt_review"):
+        lines.append("- 光模块逐票（不整组删除）：" + stats["opt_review"])
+    if stats.get("oke_note"):
+        lines.append("- 欧科亿对照：" + stats["oke_note"])
+    if stats.get("luan_note"):
+        lines.append("- 潞安环能对照：" + stats["luan_note"])
     lines.append("")
-    lines.append("### 晚筛八票独立重算交叉（禁止抄晚筛数字）")
+    lines.append("### 晚筛十票独立重算交叉（禁止抄晚筛数字）")
     lines.append("")
-    lines.append("| 代码 | 本窗收盘 | A触发 | 20日 | MA20偏离 | 60日分位 | PE/PB | 去留 |")
-    lines.append("|------|----------|------|------|----------|----------|-------|------|")
+    lines.append("| 代码 | 本窗收盘 | A触发 | 20日 | 5日 | MA20偏离 | 60日分位 | PE/PB | 去留 |")
+    lines.append("|------|----------|------|------|-----|----------|----------|-------|------|")
     by_code = {r["code"]: r for r in rows}
-    for code in EVENING_EIGHT:
+    for code in EVENING_TEN:
         rec = by_code.get(code) or {}
         a = "".join(rec.get("a_hits") or []) or "无"
         close = rec.get("close")
@@ -1039,27 +1355,30 @@ def build_reports(
         stay = "保留" if code in keep else "换出"
         lines.append(
             f"| `{code}` | {close_s} | {a} | {fmt_pct(rec.get('ret_20d'))} | "
-            f"{fmt_pct(rec.get('dev_ma20'))} | {pctile_s} | {pepb} | {stay} |"
+            f"{fmt_pct(rec.get('ret_5d'))} | {fmt_pct(rec.get('dev_ma20'))} | {pctile_s} | {pepb} | {stay} |"
         )
     lines.append("")
     lines.append(
-        "- 次对照（周二盘前十票，asof=11/09，已过时仅旁注）："
-        f"{tue_bits}。"
-        + (stats.get("tuesday_note") or "")
+        "- 次对照（11/11 盘前十票，asof=11/10，已过时仅旁注）："
+        f"{sec_bits}。"
+        + (stats.get("secondary_note") or "")
     )
     lines.append("")
     lines.append("## 核价（东财 / 新浪 / 腾讯）")
     lines.append("")
-    lines.append("| 代码 | 东财收盘 | 新浪 | 腾讯 | asof |")
-    lines.append("|------|----------|------|------|------|")
+    lines.append("| 代码 | 日K 11/11收 | 新浪昨收 | 腾讯昨收 | 是否一致 | 盘中现价(≠asof) |")
+    lines.append("|------|-------------|----------|----------|----------|-----------------|")
     for row in shortlist:
         q = quotes.get(row["code"], {})
-        sina_c = q.get("sina_close")
-        tenc_c = q.get("tencent_close")
-        sina_s = f"{sina_c:.2f}" if sina_c is not None else "NA"
-        tenc_s = f"{tenc_c:.2f}" if tenc_c is not None else "NA"
+        sina_p = q.get("sina_prev")
+        tenc_p = q.get("tencent_prev")
+        sina_s = f"{sina_p:.2f}" if sina_p is not None else "NA"
+        tenc_s = f"{tenc_p:.2f}" if tenc_p is not None else "NA"
+        live_s = q.get("tencent_close")
+        live = f"{live_s:.2f}" if live_s is not None else "NA"
+        agree = quotes_agree(q, row.get("close"))
         lines.append(
-            f"| `{row['code']}` | {row['close']:.2f} | {sina_s} | {tenc_s} | {ASOF_DEFAULT} |"
+            f"| `{row['code']}` | {row['close']:.2f} | {sina_s} | {tenc_s} | {agree} | {live} |"
         )
     lines.append("")
     lines.append("扫描≠买卖灯｜建议默认进乙｜教育模拟，非投资建议。")
@@ -1072,6 +1391,8 @@ def build_reports(
         "fetched_at": fetch_time,
         "education_only": True,
         "scan_is_not_trade_signal": True,
+        "paper_rules": "v3.9.2.70 SHA8 a5803743",
+        "decision_gate": "v0.19",
         "coverage": stats["coverage"],
         "kick_counts": stats["kick_counts"],
         "blindspots": stats["blindspots"],
@@ -1079,13 +1400,16 @@ def build_reports(
             "keep": keep,
             "drop": drop,
             "new": new,
-            "evening_eight": EVENING_EIGHT,
+            "evening_ten": EVENING_TEN,
             "explain": stats.get("vs_explain"),
         },
-        "vs_tuesday": {
-            "tuesday_ten": TUESDAY_TEN,
-            "note": stats.get("tuesday_note"),
+        "vs_secondary": {
+            "secondary_ten": SECONDARY_TEN,
+            "note": stats.get("secondary_note"),
+            "asof": "2026-11-10",
         },
+        "oil_review": stats.get("oil_review"),
+        "opt_review": stats.get("opt_review"),
         "shortlist": [
             {
                 "code": r["code"],
@@ -1098,35 +1422,48 @@ def build_reports(
                 "dev_ma20": None if r.get("dev_ma20") is None else round(r["dev_ma20"], 6),
                 "pctile_60d": None if r.get("pctile_60d") is None else round(r["pctile_60d"], 4),
                 "a_hits": r["a_hits"],
-                "pe": r.get("pe"),
-                "pb": r.get("pb"),
+                "pe": r.get("pe") if r.get("pe") is not None else "missing",
+                "pb": r.get("pb") if r.get("pb") is not None else "missing",
                 "industry": r.get("industry") or None,
                 "note": (reason_line(r) + ("；" + r["extra_note"] if r.get("extra_note") else "")),
                 "b_note": r.get("b_note"),
                 "align": r["align"],
+                "pe_src": r.get("pe_src"),
                 "quotes": quotes.get(r["code"], {}),
+                "quotes_agree": quotes_agree(quotes.get(r["code"], {}), r.get("close")),
             }
             for r in shortlist
         ],
         "held_not_new": HELD,
         "cleared_not_back": CLEARED,
+        "oil_watched_not_new": OIL_WATCHED,
     }
     js_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return md_path, js_path
 
 
 def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
-    fetch_time = now_shanghai().strftime("%Y-%m-%d %H:%M:%S UTC+08:00")
     cache_dir.mkdir(parents=True, exist_ok=True)
+    stamp_path = cache_dir / "fetch_started.txt"
+    if stamp_path.exists():
+        fetch_time = stamp_path.read_text(encoding="utf-8").strip()
+    else:
+        fetch_time = now_shanghai().strftime("%Y-%m-%d %H:%M:%S UTC+08:00")
+        stamp_path.write_text(fetch_time, encoding="utf-8")
 
     clist = fetch_clist_all(cache_dir / "clist.json")
+    clist_src = (clist[0].get("_src") if clist else "") or "eastmoney"
+    log(f"[clist] source={clist_src} n={len(clist)}")
     bk_cache = cache_dir / "bk_codes.json"
+    oil_codes: set[str] = set()
+    power_codes: set[str] = set()
     if bk_cache.exists():
         bk_payload = json.loads(bk_cache.read_text(encoding="utf-8"))
         oil_codes = set(bk_payload.get("oil", []))
         power_codes = set(bk_payload.get("power", []))
         log(f"[cache] bk oil={len(oil_codes)} power={len(power_codes)}")
-        if len(oil_codes) < 10 or not (50 <= len(power_codes) <= 200):
+    if clist_src != "sina" and (len(oil_codes) < 10 or not (50 <= len(power_codes) <= 200)):
+        try:
             oil_codes = fetch_bk_codes(OIL_BK)
             power_codes = set()
             for bk in POWER_BKS:
@@ -1135,15 +1472,11 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
                 json.dumps({"oil": sorted(oil_codes), "power": sorted(power_codes)}, ensure_ascii=False),
                 encoding="utf-8",
             )
-    else:
-        oil_codes = fetch_bk_codes(OIL_BK)
-        power_codes = set()
-        for bk in POWER_BKS:
-            power_codes |= fetch_bk_codes(bk)
-        bk_cache.write_text(
-            json.dumps({"oil": sorted(oil_codes), "power": sorted(power_codes)}, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        except Exception as exc:  # noqa: BLE001
+            log(f"[bk] fetch failed {exc}; keyword fallback")
+    elif clist_src == "sina":
+        log("[bk] skip eastmoney BK clist (universe already on sina fallback)")
+    oil_codes = oil_sleeve_codes(oil_codes, [{"code": x.get("f12"), "name": x.get("f14")} for x in clist])
 
     zt_cache = cache_dir / "zt_pools.json"
     if zt_cache.exists():
@@ -1175,6 +1508,7 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
 
     codes = [str(x["f12"]) for x in clist]
     klines = load_or_fetch_klines(codes, cache_dir / "klines", workers=workers)
+    tencent_fund = fetch_tencent_fundamentals(codes)
 
     kick: Counter[str] = Counter()
     rows: list[dict[str, Any]] = []
@@ -1193,6 +1527,13 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
         if pe is None or pe <= 0:
             pe = _fnum(item.get("f9"))
         pb = _fnum(item.get("f23"))
+        tf = tencent_fund.get(code) or {}
+        # 腾讯 f39=TTM（可负）；新浪 per 多为静态。价值门用 TTM。
+        if tf.get("pe_ttm") is not None:
+            pe = tf["pe_ttm"]
+        if tf.get("pb") is not None:
+            pb = tf["pb"]
+        rec_pe_src = "tencent_ttm" if tf.get("pe_ttm") is not None else "sina_static"
         turnover = _fnum(item.get("f8"))
         amount = _fnum(item.get("f6"))
         industry = industry_of(item)
@@ -1205,6 +1546,7 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
             "chg_pct": chg,
             "pe": pe,
             "pb": pb,
+            "pe_src": rec_pe_src,
             "turnover": turnover,
             "amount": amount,
             "industry": industry,
@@ -1253,6 +1595,11 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
         rec["pulse"] = flags["pulse"]
         rec["near_board_k"] = flags["near_board"]
         rec["limit_streak"] = flags["limit_streak"]
+        rec["dist_to_limit"] = dist_to_limit_pct(m["close"], m.get("prev_close"), code, name)
+        rec["sleeve_oil"] = code in oil_codes
+        rec["sleeve_opt"] = is_opt_mod(code, name) or code in NAMED_OPT_CHASE
+        rec["too_high"] = too_high(m)
+        rec["near_limit"] = near_limit_asof(m["pct_asof"], code, name)
 
         if hits:
             a_ge1 += 1
@@ -1260,27 +1607,26 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
             if len(hits) >= 2:
                 a_ge2 += 1
 
-        # C exclusions (no today's gap-up)
-        if code in oil_codes:
-            rec["c_reasons"].append("忌追袖·油运")
-            kick["忌追袖·油运"] += 1
-        if is_opt_mod(code, name):
-            rec["c_reasons"].append("忌追袖·光模块")
-            kick["忌追袖·光模块"] += 1
+        # C 必须逐票可核验。禁止用「油运忌追 / 光模块忌追」整组清零。
+        # 不用「今日高开>1%」作 C（WINDOW_DATE 开盘尚未发生）。
         if code in zt_asof:
             rec["c_reasons"].append("涨停池残续")
             kick["涨停池残续"] += 1
         if code in lianban_codes or flags["limit_streak"] >= 2:
             rec["c_reasons"].append("连板")
             kick["连板"] += 1
-        if code in near_codes or flags["near_board"]:
-            rec["c_reasons"].append("近板")
-            kick["近板"] += 1
-        # 光伏：仅近板/冲板才踢，未板且过A不整组剔除 —— 近板已覆盖
         if is_limit_up(m["pct_asof"], code, name):
             rec["c_reasons"].append("涨停")
             kick["涨停"] += 1
-        # 无量僵尸
+        elif rec["near_limit"] or flags["near_board"] or code in near_codes:
+            rec["c_reasons"].append("近板忌追")
+            kick["近板忌追"] += 1
+        if hits and rec["too_high"]:
+            rec["c_reasons"].append("已相对高忌追")
+            kick["已相对高忌追"] += 1
+        if code in NAMED_OPT_CHASE and m["pct_asof"] >= 5.0 and "涨停" not in rec["c_reasons"]:
+            rec["c_reasons"].append("点名大涨忌追")
+            kick["点名大涨忌追"] += 1
         amt20 = m["amt20"]
         if (turnover is not None and turnover < 0.15 and (amount or 0) < 8_000_000) or amt20 < 3_000_000:
             rec["c_reasons"].append("无量僵尸")
@@ -1288,6 +1634,7 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
 
         rec["is_power"] = is_power(code, name, industry, power_codes)
         rec["is_bank"] = is_bank(industry, name)
+        rec["is_broker"] = is_broker(industry, name)
         rec["is_pv"] = is_pv(industry, name)
         rec["value_ok"] = value_ok(pe, pb, close=rec.get("close"), name=name)
         rec["b_note"] = b_note(pe, pb, rec.get("pulse") or False)
@@ -1307,17 +1654,24 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
     # 电力：过C统计里晚筛是单独踢出；短名单再滤。这里过C不含电力。
     value_q = [r for r in passed_c if r.get("value_ok") and len(r["a_hits"]) >= 2]
 
-    # annotate evening eight drop reasons for report
+    # annotate evening ten drop reasons for report
     for r in rows:
-        if r["code"] in EVENING_EIGHT:
+        if r["code"] in EVENING_TEN or r["code"] in {"688308", "601699", "000520"}:
             if r.get("is_power"):
-                r["drop_why"] = "电力"
+                r["drop_why"] = "电力（发电禁再开，不是煤炭/油整组）"
             elif r["c_reasons"]:
                 r["drop_why"] = ",".join(r["c_reasons"])
             elif not r.get("value_ok"):
                 r["drop_why"] = "价值质量未过（PE/PB）"
+            elif "②" not in (r.get("a_hits") or []) and len(r.get("a_hits") or []) < 3:
+                r["drop_why"] = (
+                    f"仅{''.join(r.get('a_hits') or [])}（②未过，MA20={fmt_pct(r.get('dev_ma20'))}），"
+                    "不改②定义保席"
+                )
             elif len(r.get("a_hits") or []) < 2:
                 r["drop_why"] = f"A={''.join(r.get('a_hits') or []) or '无'}"
+            elif r["code"] in OIL_LOW_REVIEW:
+                r["drop_why"] = EXTRA_NOTES.get(r["code"], "油运低位单独评估，不进前列")
             else:
                 extra = EXTRA_NOTES.get(r["code"], "")
                 r["drop_why"] = "满A且过B/C，分板/行业配额或价值排序未进前10" + (
@@ -1330,16 +1684,20 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
     for r in sorted(value_q, key=lambda x: (-len(x["a_hits"]), -(x.get("score") or 0))):
         if r["code"] in taken or r["code"] in HELD or r["code"] in CLEARED or r.get("is_bank"):
             continue
+        if r["code"] in OIL_WATCHED or r["code"] in OIL_LOW_REVIEW or r["code"] in FALSE_STABLE:
+            continue
+        if r.get("is_broker"):
+            continue
         b = r["board"]
         if b in side_notes and len(side_notes[b]) < 5:
             side_notes[b].append(r)
 
     by_code = {r["code"]: r for r in rows}
-    tue_bits = []
-    for c in TUESDAY_TEN:
+    sec_bits_live = []
+    for c in SECONDARY_TEN:
         rec = by_code.get(c)
         if not rec:
-            tue_bits.append(f"`{c}`缺数据")
+            sec_bits_live.append(f"`{c}`缺数据")
             continue
         a = "".join(rec.get("a_hits") or []) or "无"
         extra = ""
@@ -1351,7 +1709,7 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
             extra += "；本窗保留/新入短名单"
         elif rec.get("value_ok") and len(rec.get("a_hits") or []) >= 2 and not rec.get("c_reasons") and not rec.get("is_power"):
             extra += "；满A过B/C未进配额前10"
-        tue_bits.append(f"`{c}`A={a}{extra}")
+        sec_bits_live.append(f"`{c}`A={a}{extra}")
 
     hot_bits = []
     for r in rows:
@@ -1364,29 +1722,95 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
                 f"`{r['code']} {r['name']}` A={a} C={why}；晚筛已剔除，本窗独立重算仍不进前列"
             )
 
-    keep_codes = [r["code"] for r in shortlist if r["code"] in EVENING_EIGHT]
-    drop_codes = [c for c in EVENING_EIGHT if c not in keep_codes]
-    new_codes = [r["code"] for r in shortlist if r["code"] not in EVENING_EIGHT]
+    def _review_line(code: str, fallback_name: str, extra: str = "") -> str:
+        rec = by_code.get(code) or {}
+        name = rec.get("name") or fallback_name
+        a = "".join(rec.get("a_hits") or []) or "无"
+        fact = chase_fact(rec) if rec else "缺K"
+        cwhy = ",".join(rec.get("c_reasons") or []) or "无C"
+        stay = "短名单" if code in taken else "不进前列"
+        bits = [f"`{code} {name}` A={a}", fact, f"C={cwhy}", stay]
+        if extra:
+            bits.append(extra)
+        return "；".join(bits)
+
+    oil_bits = [
+        _review_line("601872", "招商轮船", "已观察不占新席；11/11旁证收16.25/+2.52%/开+0.06%/距涨停约7.32%；微回调≠抄底"),
+        _review_line("600026", "中远海能", "已观察不占新席；11/11旁证收16.96/+1.68%"),
+        _review_line("601975", "招商南油", "已观察不占新席；11/11旁证收3.55/+2.60%"),
+        _review_line(
+            "000520",
+            "凤凰航运",
+            "低位须单独评估；11/11旁证收2.81/-5.07%/开-2.70%/距涨停约16.01%；下跌≠抄底；腾讯TTM PE/PB约49/6.25畸高；无公司订单/UKMTO新锚不进前列；过A也不默删油运袖；复评条件=有对得上UKMTO文本的公司订单或新锚且估值不再畸高",
+        ),
+    ]
+    oil_pass_a = [
+        r for r in rows
+        if r.get("sleeve_oil") and r.get("a_hits") and r["code"] not in {"601872", "600026", "601975", "000520"}
+    ]
+    oil_pass_a.sort(key=lambda x: (-len(x["a_hits"]), -(x.get("score") or 0)))
+    for r in oil_pass_a[:8]:
+        oil_bits.append(_review_line(r["code"], r.get("name") or "", "油运过A逐票，不因袖标签删除"))
+
+    opt_bits = []
+    for code, nm in NAMED_OPT_CHASE.items():
+        rec = by_code.get(code) or {}
+        extra = "点名近板/涨停/大涨忌追；未近板且过A不得因光模块主题删除"
+        opt_bits.append(_review_line(code, nm, extra))
+    other_opt = [
+        r for r in rows
+        if r.get("sleeve_opt") and r["code"] not in NAMED_OPT_CHASE and r.get("a_hits") and not r.get("c_reasons")
+    ]
+    other_opt.sort(key=lambda x: (-len(x["a_hits"]), -(x.get("score") or 0)))
+    for r in other_opt[:6]:
+        opt_bits.append(_review_line(r["code"], r.get("name") or "", "未近板且过A，不因光模块主题删除"))
+
+    oke = by_code.get("688308") or {}
+    oke_note = _review_line(
+        "688308",
+        "欧科亿",
+        "晚筛已因过高换出；独立重算过A也不得无解释塞回前列；科创观察·不对齐本账户开仓",
+    )
+    luan = by_code.get("601699") or {}
+    luan_a = "".join(luan.get("a_hits") or []) or "无"
+    luan_note = (
+        f"`601699 潞安环能` 本窗A={luan_a}；{chase_fact(luan) if luan else '缺K'}；"
+        f"C={','.join(luan.get('c_reasons') or []) or '无C'}；"
+        "仍过硬门则可写入并旁注库档丙、不自动升乙；煤炭不是电力，不用发电禁令抹掉且不留注。"
+        + ("本窗入短名单。" if "601699" in taken else "本窗未进短名单前列。")
+    )
+
+    keep_codes = [r["code"] for r in shortlist if r["code"] in EVENING_TEN]
+    drop_codes = [c for c in EVENING_TEN if c not in keep_codes]
     explain_bits = [
-        "晚筛只对约847只候选跑K，本窗全A独立重算，名单以本窗A/B/C为准。",
-        f"{WINDOW_DATE} 今开未知，未把今日高开>1%写入C；{ASOF_DEFAULT} 当日高开>1%仅作相对晚筛解释。",
-        "铜价 Official 仍 09 Nov（10/11 未挂），不因此整组剔除工业金属；`600362` 去留只看本窗 A/B/C。",
+        "对照昨晚晚筛十票（agent bc-4fefb39d，同一 price_asof=11/11），本窗全A独立重算，禁止抄名单。",
+        f"C 按未开盘口径，未把今日高开>1%写入C；{ASOF_DEFAULT} 当日高开>1%仅作相对晚筛解释；核价时虽已开盘，11/12 现价不当 asof、不写入 C。",
+        "LME Official 铜仍 10 Nov（11/12 未挂），不因此整组剔除工业金属；`600362` 去留只看本窗 A/B/C。",
+        "UKMTO 最高仍 202-26（不是沉船）；Hormuz 仍 Restricted 未重开；2026-11-12 08:00 新浪 WTI 86.226 / Brent 92.423 vs 11/11 20:59：-1.260% / -0.877%，无新≥3%大动。微回调≠抄底油运，但低位票须逐票评估、禁止整组默删。",
     ]
     for c in drop_codes:
         rec = by_code.get(c) or {}
-        name = rec.get("name") or EVENING_EIGHT_LABELS.get(c, "")
+        name = rec.get("name") or EVENING_TEN_LABELS.get(c, "")
         explain_bits.append(f"`{c} {name}` 换出：{rec.get('drop_why') or '未进前10'}。")
     for r in shortlist:
-        if r["code"] not in EVENING_EIGHT:
+        if r["code"] not in EVENING_TEN:
             explain_bits.append(
                 f"`{r['code']} {r['name']}` 新入：满A{len(r['a_hits'])}、过B/C，分板/行业配额入席。"
             )
     if "601699" in keep_codes:
         explain_bits.append(
-            "`601699 潞安环能` 独立重算仍过门，写入短名单但库档仍丙、不自动升乙；与神华同属煤炭链、忌叠力。"
+            "`601699 潞安环能` 独立重算仍过门，写入短名单但库档仍丙、不自动升乙；与神华同属煤炭链、忌叠力；煤炭不是电力。"
         )
     if "600938" in keep_codes:
         explain_bits.append("`600938 中国海油` 油气生产不是油运忌追袖，油气链偏弱只观察。")
+    for code in ("603808", "301219"):
+        rec = by_code.get(code) or {}
+        hits = rec.get("a_hits") or []
+        if hits and "②" not in hits:
+            explain_bits.append(
+                f"`{code} {rec.get('name') or ''}` 本窗A={''.join(hits)}，MA20偏离={fmt_pct(rec.get('dev_ma20'))}，"
+                "未改②定义去保席；若仅①③如实写。"
+            )
 
     coverage = {
         "scanned": len(clist),
@@ -1408,15 +1832,16 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
     halt_n = kick.get("停牌或无价", 0) + kick.get("退市整理", 0)
     kline_empty = kick.get("K线空", 0)
     blindspots = [
-        "不复权日K（fqt=0）；A③单独过门很宽，短名单只从满2条A且过 B/C 的票里按分板/行业配额取 5–10。",
-        "未全量核验立案/停牌全文；无价票多为退市整理/长期停牌/已吸收合并，不以假收盘补齐。",
-        "东财 push2 主域 502，clist/日K 走 82/88.push2*.eastmoney.com 镜像并重试；失败票计入 K线空，不编造。",
-        "光模块未整组踢 BK1136，只用代码+简称兜底，可能漏侧链或误伤简称命中。",
-        "60日分位用近60根收盘 ≤ 现价 占比；晚筛八票用本窗独立重算交叉，禁止抄晚筛数字。",
-        f"clist 无 {ASOF_DEFAULT} 收盘 {halt_n}（退市/停牌/ST 无价，不计入 K 线 API 失败）；K线空 {kline_empty}。",
-        f"今日（{WINDOW_DATE}）尚未开盘：核价接口返回的仍是 {ASOF_DEFAULT} 收盘，不是今开。",
-        "价值质量要求 PE∈[5,40]、PB∈[0.4,4]、现价≥1，退市整理不进短名单；短名单排序把低PE/破净权重大于单边暴跌。",
-        "晚筛覆盖约847只候选K线；本窗对沪深全A逐只拉日K，覆盖差可能造成相对晚筛的换入/换出。",
+        "不复权日K（fqt=0）；A③单独过门很宽，短名单只从满2条A（且至少含①或②）且过 B/C 的票里按分板/行业配额取 5–10，不用仅③票凑数。",
+        "未全量核验立案/停牌全文；无价票多为退市整理/长期停牌/已吸收合并，不以假收盘补齐；停牌原因不明标 UNKNOWN，不编造。",
+        "东财 push2 主域 502；clist 优先东财镜像，失败则回退新浪 hs_a（剔北交所），日K 优先东财不复权、失败回退腾讯不复权。失败票计入 K线空，不编造。",
+        "油运/光模块不整组踢出；近板/涨停/5日急弹≥+10% 按票踢。光模块点名表可能漏侧链。",
+        "60日分位用近60根收盘 ≤ 现价 占比；晚筛十票用本窗独立重算交叉，禁止抄晚筛数字。",
+        f"clist 源={clist_src}；无 {ASOF_DEFAULT} 收盘 {halt_n}（退市/停牌/ST 无价，不计入 K 线 API 失败）；K线空 {kline_empty}。新浪回退时行业字段缺失，电力识别靠简称关键词+已知点名，可能漏发电名，短名单仍禁电力。",
+        f"窗口按未开盘口径写 C（不用今日高开>1%）。日K 拉取耗时长，核价时已开盘，故 11/11 收盘用新浪/腾讯**昨收**交叉，盘中现价只旁注。",
+        "PE 价值门用腾讯 TTM（qt 字段 39），不用新浪静态市盈率；TTM≤0 或 >40 记价值未过，不编造。",
+        "价值质量要求 PE∈[5,40]、PB∈[0.4,4]、现价≥1，退市整理不进短名单；短名单排序把低PE/破净权重大于单边暴跌。畸高PE/PB降权，不排短名单最前。",
+        "本窗对沪深全A逐只拉不复权日K；相对晚筛的换入/换出来自独立重算，不是抄名单。",
     ]
     stats = {
         "coverage": coverage,
@@ -1430,20 +1855,24 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
         "max_lbc": max_lbc,
         "gap_asof_n": gap_n,
         "blindspots": blindspots,
-        "tuesday_note": "本窗旁注：" + "；".join(tue_bits[:10]) + "。",
+        "secondary_note": "本窗旁注：" + "；".join(sec_bits_live[:10]) + "。",
         "side_notes": side_notes,
         "vs_explain": "".join(explain_bits),
         "hot_sleeve_note": "；".join(hot_bits) if hot_bits else "未在全A名单中解析到万辰集团/联讯仪器简称。",
+        "oil_review": "；".join(oil_bits),
+        "opt_review": "；".join(opt_bits),
+        "oke_note": oke_note,
+        "luan_note": luan_note,
     }
 
     quotes = cross_quotes([r["code"] for r in shortlist])
     # sanity: flag mismatches
     for r in shortlist:
         q = quotes.get(r["code"], {})
-        for src in ("sina_close", "tencent_close"):
+        for src in ("sina_prev", "tencent_prev"):
             v = q.get(src)
             if v is not None and abs(v - r["close"]) > 0.011:
-                log(f"[quote-mismatch] {r['code']} em={r['close']} {src}={v}")
+                log(f"[quote-mismatch] {r['code']} kline={r['close']} {src}={v}")
 
     written: list[Path] = []
     for d in out_dirs:
@@ -1485,7 +1914,7 @@ def run(cache_dir: Path, out_dirs: list[Path], workers: int) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="沪深全A价值超跌硬扫")
     parser.add_argument("--asof", default=ASOF_DEFAULT)
-    parser.add_argument("--cache", type=Path, default=Path("cache/oversold-20261111"))
+    parser.add_argument("--cache", type=Path, default=Path("cache/oversold-20261112"))
     parser.add_argument("--workers", type=int, default=16)
     parser.add_argument(
         "--out",
@@ -1493,7 +1922,7 @@ def main() -> int:
         nargs="+",
         default=[
             Path("."),
-            Path("artifacts/morning-2026-11-11"),
+            Path("artifacts/morning-2026-11-12"),
             Path("/opt/cursor/artifacts"),
         ],
     )
