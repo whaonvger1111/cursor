@@ -1,0 +1,206 @@
+{
+  "window": "2026-11-13 周五盘前",
+  "price_asof": "2026-11-12",
+  "fetched_at": "2026-11-13 08:28:01 UTC+08:00",
+  "coverage": {
+    "scanned": 5223,
+    "boards": {
+      "main": 3195,
+      "star": 618,
+      "chinext": 1410
+    },
+    "k_valid": 5213,
+    "pass_a": 3881,
+    "pass_a_boards": {
+      "main": 2306,
+      "star": 473,
+      "chinext": 1102
+    },
+    "pass_a2": 807,
+    "pass_c": 3578,
+    "value_quality": 268,
+    "shortlist": 10,
+    "lowland": {
+      "main": 5,
+      "chinext": 5,
+      "star": 4
+    },
+    "clist_src": "sina",
+    "kline_per_stock": true,
+    "universe_note": "本窗对沪深主板+创业+科创逐只拉不复权日K；独立重计，不复制晚筛 5223 故事"
+  },
+  "missing_n": 10,
+  "missing": [
+    {
+      "code": "600185",
+      "name": "珠免集团",
+      "board": "main",
+      "price_date": "2026-11-12",
+      "k_end": "2026-11-11",
+      "k_len": 90,
+      "reason": "K末日=2026-11-11 k_len=90；公开停牌：巨潮公告1225667574：筹划重大资产重组，2026-11-12开市起停牌；新浪股海导航/上证报同日交叉",
+      "halt_status": "HALT",
+      "halt_evidence": "巨潮公告1225667574：筹划重大资产重组，2026-11-12开市起停牌；新浪股海导航/上证报同日交叉",
+      "retryable": false
+    },
+    {
+      "code": "688121",
+      "name": "*ST卓然",
+      "board": "star",
+      "price_date": "2026-11-12",
+      "k_end": "2026-10-28",
+      "k_len": 90,
+      "reason": "K末日=2026-10-28 k_len=90；公开停牌：公开日历：继续停牌（起始2026-10-29），刊登重要公告",
+      "halt_status": "HALT",
+      "halt_evidence": "公开日历：继续停牌（起始2026-10-29），刊登重要公告",
+      "retryable": false
+    },
+    {
+      "code": "688496",
+      "name": "*ST清越",
+      "board": "star",
+      "price_date": "2026-11-12",
+      "k_end": "2026-09-10",
+      "k_len": 90,
+      "reason": "K末日=2026-09-10 k_len=90；公开停牌：公开日历：继续停牌（起始2026-09-11），刊登重要公告",
+      "halt_status": "HALT",
+      "halt_evidence": "公开日历：继续停牌（起始2026-09-11），刊登重要公告",
+      "retryable": false
+    },
+    {
+      "code": "688798",
+      "name": "艾为电子",
+      "board": "star",
+      "price_date": "2026-11-12",
+      "k_end": "2026-11-09",
+      "k_len": 90,
+      "reason": "K末日=2026-11-09 k_len=90；公开停牌：公开日历：继续停牌（起始2026-11-10），拟筹划重大资产重组；第一财经11/12七只停牌点名",
+      "halt_status": "HALT",
+      "halt_evidence": "公开日历：继续停牌（起始2026-11-10），拟筹划重大资产重组；第一财经11/12七只停牌点名",
+      "retryable": false
+    },
+    {
+      "code": "688827",
+      "name": "C钶锐",
+      "board": "star",
+      "price_date": "2026-11-12",
+      "k_end": "2026-11-12",
+      "k_len": 3,
+      "reason": "次新/样本不足：K末日=2026-11-12 但 k_len=3<21，不够算A硬；不编造停牌",
+      "halt_status": "UNKNOWN",
+      "halt_evidence": "",
+      "retryable": false
+    },
+    {
+      "code": "000831",
+      "name": "中国稀土",
+      "board": "main",
+      "price_date": "2026-11-12",
+      "k_end": "2026-10-30",
+      "k_len": 90,
+      "reason": "无2026-11-12收盘价；公开停牌：公开日历：继续停牌（起始2026-11-02），拟筹划重大资产重组；第一财经11/12七只停牌点名",
+      "halt_status": "HALT",
+      "halt_evidence": "公开日历：继续停牌（起始2026-11-02），拟筹划重大资产重组；第一财经11/12七只停牌点名",
+      "retryable": false
+    },
+    {
+      "code": "001381",
+      "name": "皇冠新材",
+      "board": "main",
+      "price_date": "2026-11-12",
+      "k_end": "2026-11-12",
+      "k_len": 8,
+      "reason": "次新/样本不足：K末日=2026-11-12 但 k_len=8<21，不够算A硬；不编造停牌",
+      "halt_status": "UNKNOWN",
+      "halt_evidence": "",
+      "retryable": false
+    },
+    {
+      "code": "002129",
+      "name": "TCL中环",
+      "board": "main",
+      "price_date": "2026-11-12",
+      "k_end": "2026-10-30",
+      "k_len": 90,
+      "reason": "无2026-11-12收盘价；公开停牌：公开日历：继续停牌（起始2026-11-02），拟筹划重大资产重组",
+      "halt_status": "HALT",
+      "halt_evidence": "公开日历：继续停牌（起始2026-11-02），拟筹划重大资产重组",
+      "retryable": false
+    },
+    {
+      "code": "002717",
+      "name": "*ST岭南",
+      "board": "main",
+      "price_date": "2026-11-12",
+      "k_end": "2026-10-12",
+      "k_len": 90,
+      "reason": "无2026-11-12收盘价；公开停牌：公开日历：继续停牌（起始2026-10-13），刊登重要公告",
+      "halt_status": "HALT",
+      "halt_evidence": "公开日历：继续停牌（起始2026-10-13），刊登重要公告",
+      "retryable": false
+    },
+    {
+      "code": "301718",
+      "name": "通则康威",
+      "board": "chinext",
+      "price_date": "2026-11-12",
+      "k_end": "2026-11-12",
+      "k_len": 16,
+      "reason": "次新/样本不足：K末日=2026-11-12 但 k_len=16<21，不够算A硬；不编造停牌",
+      "halt_status": "UNKNOWN",
+      "halt_evidence": "",
+      "retryable": false
+    }
+  ],
+  "halt_unknown_policy": "原因不明标 UNKNOWN，禁止编造停牌",
+  "success_samples": [
+    {
+      "code": "600000",
+      "name": "浦发银行",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600004",
+      "name": "白云机场",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600006",
+      "name": "东风股份",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600007",
+      "name": "中国国贸",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600008",
+      "name": "首创环保",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600009",
+      "name": "上海机场",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600010",
+      "name": "包钢股份",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    },
+    {
+      "code": "600011",
+      "name": "华能国际",
+      "k_end": "2026-11-12",
+      "k_len": 90
+    }
+  ]
+}

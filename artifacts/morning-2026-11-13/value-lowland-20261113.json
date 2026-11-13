@@ -1,0 +1,687 @@
+{
+  "window": "2026-11-13 周五盘前 Asia/Shanghai",
+  "price_asof": "2026-11-12",
+  "fetched_at": "2026-11-13 08:28:01 UTC+08:00",
+  "education_only": true,
+  "scan_is_not_trade_signal": true,
+  "coverage": {
+    "scanned": 5223,
+    "k_valid": 5213,
+    "lowland_ok": 162,
+    "boards": {
+      "main": 5,
+      "chinext": 5,
+      "star": 4
+    }
+  },
+  "vs_evening": {
+    "main": {
+      "maintain": [
+        {
+          "code": "601186",
+          "name": "中国铁建",
+          "why": "现价仍处低地"
+        },
+        {
+          "code": "601390",
+          "name": "中国中铁",
+          "why": "现价仍处低地"
+        },
+        {
+          "code": "600016",
+          "name": "民生银行",
+          "why": "现价仍处低地"
+        },
+        {
+          "code": "600104",
+          "name": "上汽集团",
+          "why": "现价仍处低地"
+        }
+      ],
+      "correct": [
+        {
+          "code": "000932",
+          "name": "华菱钢铁",
+          "why": "PE=64畸高出门"
+        }
+      ],
+      "add": [
+        {
+          "code": "000709",
+          "name": "河钢股份",
+          "why": "破净且仍低"
+        }
+      ],
+      "blind": []
+    },
+    "chinext": {
+      "maintain": [
+        {
+          "code": "300388",
+          "name": "节能国祯",
+          "why": "现价仍处低地"
+        },
+        {
+          "code": "300349",
+          "name": "金卡智能",
+          "why": "现价仍处低地"
+        },
+        {
+          "code": "301039",
+          "name": "中集车辆",
+          "why": "现价仍处低地"
+        },
+        {
+          "code": "300664",
+          "name": "鹏鹞环保",
+          "why": "现价仍处低地"
+        }
+      ],
+      "correct": [
+        {
+          "code": "300729",
+          "name": "乐歌股份",
+          "why": "已回均线附近"
+        }
+      ],
+      "add": [
+        {
+          "code": "301276",
+          "name": "嘉曼服饰",
+          "why": "相对低估且仍低"
+        }
+      ],
+      "blind": []
+    },
+    "star": {
+      "maintain": [
+        {
+          "code": "688330",
+          "name": "宏力达",
+          "why": "现价仍处低地"
+        }
+      ],
+      "correct": [
+        {
+          "code": "688101",
+          "name": "三达膜",
+          "why": "已回均线附近"
+        },
+        {
+          "code": "688186",
+          "name": "广大特材",
+          "why": "已回均线附近"
+        },
+        {
+          "code": "688819",
+          "name": "天能股份",
+          "why": "PE=41畸高出门"
+        },
+        {
+          "code": "688606",
+          "name": "奥泰生物",
+          "why": "已回均线附近"
+        }
+      ],
+      "add": [
+        {
+          "code": "688015",
+          "name": "交控科技",
+          "why": "相对低估且仍低"
+        },
+        {
+          "code": "688425",
+          "name": "铁建重工",
+          "why": "相对低估且仍低"
+        },
+        {
+          "code": "688275",
+          "name": "万润新能",
+          "why": "相对低估且仍低"
+        }
+      ],
+      "blind": []
+    },
+    "blind": [
+      {
+        "code": "600008",
+        "name": "首创环保",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 12.98,
+        "pb": 0.95,
+        "dev_ma20": -0.006300630063006296,
+        "pctile_60d": 33.333333333333336
+      },
+      {
+        "code": "600017",
+        "name": "日照港",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 19.82,
+        "pb": 0.58,
+        "dev_ma20": -0.025808796801163325,
+        "pctile_60d": 16.666666666666668
+      },
+      {
+        "code": "600050",
+        "name": "中国联通",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 21.48,
+        "pb": 0.76,
+        "dev_ma20": -0.03655620088828149,
+        "pctile_60d": 31.666666666666668
+      },
+      {
+        "code": "600061",
+        "name": "国投资本",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 11.12,
+        "pb": 0.69,
+        "dev_ma20": -0.015108207431604792,
+        "pctile_60d": 8.333333333333334
+      },
+      {
+        "code": "600064",
+        "name": "南京高科",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 11.42,
+        "pb": 0.64,
+        "dev_ma20": -0.024767801857585203,
+        "pctile_60d": 6.666666666666667
+      },
+      {
+        "code": "600116",
+        "name": "三峡水利",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 16.98,
+        "pb": 0.95,
+        "dev_ma20": -0.012638900670116082,
+        "pctile_60d": 10.0
+      },
+      {
+        "code": "600120",
+        "name": "浙江东方",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 17.42,
+        "pb": 0.83,
+        "dev_ma20": -0.048268029528676815,
+        "pctile_60d": 3.3333333333333335
+      },
+      {
+        "code": "600133",
+        "name": "东湖高新",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 38.73,
+        "pb": 0.84,
+        "dev_ma20": -0.030444322545254976,
+        "pctile_60d": 3.3333333333333335
+      },
+      {
+        "code": "600170",
+        "name": "上海建工",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 22.02,
+        "pb": 0.6,
+        "dev_ma20": -0.00976290097629029,
+        "pctile_60d": 11.666666666666666
+      },
+      {
+        "code": "600216",
+        "name": "浙江医药",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 16.27,
+        "pb": 0.9,
+        "dev_ma20": -0.05676163635562981,
+        "pctile_60d": 5.0
+      },
+      {
+        "code": "600273",
+        "name": "嘉化能源",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 15.23,
+        "pb": 0.81,
+        "dev_ma20": -0.012028869286287103,
+        "pctile_60d": 15.0
+      },
+      {
+        "code": "600282",
+        "name": "南钢股份",
+        "board": "main",
+        "why": "仍低未进前5",
+        "pe": 10.45,
+        "pb": 0.94,
+        "dev_ma20": -0.03795736920095749,
+        "pctile_60d": 5.0
+      }
+    ]
+  },
+  "boards": {
+    "main": [
+      {
+        "code": "600016",
+        "name": "民生银行",
+        "board": "主板",
+        "close": 3.39,
+        "ret_5d": -0.0058651026392961825,
+        "ret_20d": -0.03418803418803407,
+        "dev_ma20": -0.021221307925508803,
+        "pctile_60d": 3.3333333333333335,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 5.63,
+        "pb": 0.26,
+        "note": "破净且仍低",
+        "align": "仅对照·勿堆第二银行强制席",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 3.39,
+          "tencent_asof": 3.39,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 3.39,
+          "tencent_close": 3.39,
+          "tencent_prev": 3.4,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "601186",
+        "name": "中国铁建",
+        "board": "主板",
+        "close": 5.9,
+        "ret_5d": -0.016666666666666607,
+        "ret_20d": -0.03594771241830064,
+        "dev_ma20": -0.021883289124668415,
+        "pctile_60d": 5.0,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 6.21,
+        "pb": 0.29,
+        "note": "破净且仍低",
+        "align": "主板",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 5.9,
+          "tencent_asof": 5.9,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 5.9,
+          "tencent_close": 5.9,
+          "tencent_prev": 5.88,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "601390",
+        "name": "中国中铁",
+        "board": "主板",
+        "close": 4.24,
+        "ret_5d": -0.031963470319634646,
+        "ret_20d": -0.016241299303944134,
+        "dev_ma20": -0.012690650832460126,
+        "pctile_60d": 11.666666666666666,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 5.84,
+        "pb": 0.32,
+        "note": "破净且仍低",
+        "align": "主板",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 4.24,
+          "tencent_asof": 4.24,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 4.24,
+          "tencent_close": 4.24,
+          "tencent_prev": 4.27,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "600104",
+        "name": "上汽集团",
+        "board": "主板",
+        "close": 10.0,
+        "ret_5d": -0.06367041198501866,
+        "ret_20d": -0.06803355079217155,
+        "dev_ma20": -0.05678173929447272,
+        "pctile_60d": 3.3333333333333335,
+        "a_hits": [
+          "①",
+          "③"
+        ],
+        "pe": 15.04,
+        "pb": 0.38,
+        "note": "破净且仍低",
+        "align": "主板",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 10.0,
+          "tencent_asof": 10.0,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 10.0,
+          "tencent_close": 10.0,
+          "tencent_prev": 10.29,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "000709",
+        "name": "河钢股份",
+        "board": "主板",
+        "close": 1.9,
+        "ret_5d": -0.045226130653266416,
+        "ret_20d": -0.050000000000000044,
+        "dev_ma20": -0.031847133757961776,
+        "pctile_60d": 5.0,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 22.48,
+        "pb": 0.38,
+        "note": "破净且仍低",
+        "align": "主板",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 1.9,
+          "tencent_asof": 1.9,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 1.9,
+          "tencent_close": 1.9,
+          "tencent_prev": 1.92,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      }
+    ],
+    "chinext": [
+      {
+        "code": "300664",
+        "name": "鹏鹞环保",
+        "board": "创业板",
+        "close": 4.25,
+        "ret_5d": -0.02298850574712641,
+        "ret_20d": -0.07608695652173902,
+        "dev_ma20": -0.026568941823179038,
+        "pctile_60d": 5.0,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 25.45,
+        "pb": 0.72,
+        "note": "相对低估且仍低",
+        "align": "可对齐",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 4.25,
+          "tencent_asof": 4.25,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 4.25,
+          "tencent_close": 4.25,
+          "tencent_prev": 4.32,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "300349",
+        "name": "金卡智能",
+        "board": "创业板",
+        "close": 8.83,
+        "ret_5d": -0.018888888888888844,
+        "ret_20d": -0.06063829787234043,
+        "dev_ma20": -0.030522617479139313,
+        "pctile_60d": 11.666666666666666,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 23.71,
+        "pb": 0.82,
+        "note": "相对低估且仍低",
+        "align": "可对齐",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 8.83,
+          "tencent_asof": 8.83,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 8.83,
+          "tencent_close": 8.83,
+          "tencent_prev": 8.99,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "300388",
+        "name": "节能国祯",
+        "board": "创业板",
+        "close": 6.32,
+        "ret_5d": -0.012499999999999956,
+        "ret_20d": -0.027692307692307683,
+        "dev_ma20": -0.0072258875274896495,
+        "pctile_60d": 11.666666666666666,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 11.54,
+        "pb": 0.87,
+        "note": "相对低估且仍低",
+        "align": "可对齐",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 6.32,
+          "tencent_asof": 6.32,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 6.32,
+          "tencent_close": 6.32,
+          "tencent_prev": 6.4,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "301039",
+        "name": "中集车辆",
+        "board": "创业板",
+        "close": 6.79,
+        "ret_5d": -0.07869742198100405,
+        "ret_20d": -0.035511363636363646,
+        "dev_ma20": -0.04372931483698317,
+        "pctile_60d": 1.6666666666666667,
+        "a_hits": [
+          "①",
+          "③"
+        ],
+        "pe": 16.57,
+        "pb": 0.9,
+        "note": "相对低估且仍低",
+        "align": "可对齐",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 6.79,
+          "tencent_asof": 6.79,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 6.79,
+          "tencent_close": 6.79,
+          "tencent_prev": 6.97,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "301276",
+        "name": "嘉曼服饰",
+        "board": "创业板",
+        "close": 15.63,
+        "ret_5d": -0.006357279084551748,
+        "ret_20d": -0.04227941176470584,
+        "dev_ma20": -0.01135393276194685,
+        "pctile_60d": 15.0,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 20.8,
+        "pb": 0.96,
+        "note": "相对低估且仍低",
+        "align": "可对齐",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 15.63,
+          "tencent_asof": 15.63,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 15.63,
+          "tencent_close": 15.63,
+          "tencent_prev": 15.83,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      }
+    ],
+    "star": [
+      {
+        "code": "688330",
+        "name": "宏力达",
+        "board": "科创板",
+        "close": 29.32,
+        "ret_5d": 0.026970227670753077,
+        "ret_20d": -0.09867814325238244,
+        "dev_ma20": -0.0476654486398701,
+        "pctile_60d": 11.666666666666666,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 7.7,
+        "pb": 0.94,
+        "note": "相对低估且仍低",
+        "align": "观察·不对齐本账户开仓",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 29.32,
+          "tencent_asof": 29.32,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 29.32,
+          "tencent_close": 29.32,
+          "tencent_prev": 29.79,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "688015",
+        "name": "交控科技",
+        "board": "科创板",
+        "close": 13.67,
+        "ret_5d": -0.004369992716678817,
+        "ret_20d": -0.13040712468193383,
+        "dev_ma20": -0.08057573311810606,
+        "pctile_60d": 10.0,
+        "a_hits": [
+          "①",
+          "②",
+          "③"
+        ],
+        "pe": 19.6,
+        "pb": 0.97,
+        "note": "相对低估且仍低",
+        "align": "观察·不对齐本账户开仓",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 13.67,
+          "tencent_asof": 13.67,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 13.67,
+          "tencent_close": 13.67,
+          "tencent_prev": 13.82,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "688425",
+        "name": "铁建重工",
+        "board": "科创板",
+        "close": 3.96,
+        "ret_5d": -0.041162227602905554,
+        "ret_20d": 0.010204081632652962,
+        "dev_ma20": -0.02089257015700341,
+        "pctile_60d": 23.333333333333332,
+        "a_hits": [
+          "③"
+        ],
+        "pe": 17.28,
+        "pb": 1.12,
+        "note": "相对低估且仍低",
+        "align": "观察·不对齐本账户开仓",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 3.96,
+          "tencent_asof": 3.96,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 3.96,
+          "tencent_close": 3.96,
+          "tencent_prev": 4.02,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      },
+      {
+        "code": "688275",
+        "name": "万润新能",
+        "board": "科创板",
+        "close": 50.63,
+        "ret_5d": -0.0461567445365485,
+        "ret_20d": -0.15714999167637755,
+        "dev_ma20": -0.045788218886344545,
+        "pctile_60d": 10.0,
+        "a_hits": [
+          "①",
+          "③"
+        ],
+        "pe": 22.45,
+        "pb": 1.18,
+        "note": "相对低估且仍低",
+        "align": "观察·不对齐本账户开仓",
+        "financial_note": "",
+        "quotes": {
+          "sina_asof": 50.63,
+          "tencent_asof": 50.63,
+          "sina_field": "prev",
+          "tencent_field": "last",
+          "sina_close": 0.0,
+          "sina_prev": 50.63,
+          "tencent_close": 50.63,
+          "tencent_prev": 51.7,
+          "agree": "11/12收盘三源一致（新浪用prev，腾讯用last；盘前现价可能=asof）"
+        }
+      }
+    ]
+  }
+}
